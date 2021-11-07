@@ -124,15 +124,6 @@ class Preprocessing:
         return folds
 
     @staticmethod
-    def get_sequential_k_folds(k, input_ids, inX, outy, config):
-        Preprocessing.check_k_folds_value(k, inX)
-
-        folds = []
-        for fold_idx in range(k):
-            return
-
-
-    @staticmethod
     def check_k_folds_value(k, datasize):
         if k > datasize:
             msg = 'error, k > datasize', k, datasize
