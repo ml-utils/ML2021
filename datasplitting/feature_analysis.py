@@ -48,17 +48,13 @@ class FeaturesAnalysis:
     def plot_boxplots(X, y, config):
         concatenated_dataset = DataSplits.concatenate_dataset(X, y, config)
 
-        dataset_col_num = concatenated_dataset.shape[1] # todo, from dataset shape
+        dataset_col_num = concatenated_dataset.shape[1]
         plot_side_lenght = FeaturesAnalysis.get_square_side_leght(dataset_col_num)
         fig = plt.figure()
         for i in range(dataset_col_num):
             ax = fig.add_subplot(plot_side_lenght, plot_side_lenght, i+1)
             column_data = concatenated_dataset[:, i]
             ax.boxplot(column_data, patch_artist=True, notch='True')
-            # todo: slice dataset
-        # ax1 = fig.add_subplot(221)
-        # ax2 = fig.add_subplot(222)
-        # ax2.boxplot(rainfall_north)
         plt.show()
 
     @staticmethod

@@ -15,3 +15,9 @@ if __name__ == '__main__':
 
     # FeaturesAnalysis.plot_correlation_matrix2(inX, outy, dataset_config)
     FeaturesAnalysis.plot_boxplots(inX, outy, dataset_config)
+
+    # todo: print box plots of the same variable along different splits; see also standard deviation
+    # todo: plot ..histogram/scatterplot distribution of each variable, to see if gaussia, power law, etc.
+
+    # todo, draw some learning curves (regression, scikit library nn, ..)
+    # todo gridsearch cross validation
