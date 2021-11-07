@@ -14,14 +14,14 @@ class Preprocessing:
         MLCUP2021datatypes = ['%i'] + (['%f'] * 12)  # first col is integer, the others are floats
         configurations['MLCUP2021'] = {'shortname': 'MLCUP2021', 'filename': 'ML-CUP21-TR.csv',
                                        'input_dim': 10, 'x_begin_col_idx': 1, 'x_end_col_idx': 10,
-                                       'y_begin_col_idx': 11, 'y_end_col_idx': 12,
+                                       'output_dim': 2, 'y_begin_col_idx': 11, 'y_end_col_idx': 12,
                                        'datatypes': MLCUP2021datatypes,
-                                        'file_extension': '.csv', 'csv_delimiter': ',', 'folder': './assets/'}
+                                       'file_extension': '.csv', 'csv_delimiter': ',', 'folder': './assets/'}
 
-        airfoil_datatypes = ['%i', '%f']
+        airfoil_datatypes = ['%i'] + (['%f'] * 5)
         configurations['airfoil'] = {'shortname': 'airfoil', 'filename': 'airfoil_self_noise.dat.csv',
                                      'input_dim': 5, 'x_begin_col_idx': 0, 'x_end_col_idx': 4,
-                                     'y_begin_col_idx': 5, 'y_end_col_idx': 5,
+                                     'output_dim': 1, 'y_begin_col_idx': 5, 'y_end_col_idx': 5,
                                      'datatypes': airfoil_datatypes,
                                      'file_extension': '.csv', 'csv_delimiter': '\t', 'folder': './assets/airfoil/'}
 
@@ -48,96 +48,94 @@ class Preprocessing:
     def slice_dataset(dataset, config):
         # split ndarray into: ids list, input (X) and output (y) variables
 
+        int_ids = None
         if config['shortname'] is 'MLCUP2021':
             ids = dataset[:, 0]
             int_ids = []
             for idx_idx, idx in enumerate(ids):
                 int_ids.append(int(idx))
 
-            X = dataset[:, config['x_begin_col_idx']:(config['x_end_col_idx'] + 1)]
-            y = dataset[:, config['y_begin_col_idx']:(config['y_end_col_idx'] + 1)]
-            return int_ids, X, y
-        elif config['shortname'] is 'airfoil':
-            X = dataset[:, 1:(config['input_dim'] + 1)]
-            y = dataset[:, 11:13]
-            return None, X, y
-        else:
-            msg = 'error, dataset not supported: ' + config['filename']
-            raise NameError(msg)
+        X = dataset[:, config['x_begin_col_idx']:(config['x_end_col_idx'] + 1)]
+        y = dataset[:, config['y_begin_col_idx']:(config['y_end_col_idx'] + 1)]
+        return int_ids, X, y
 
     @staticmethod
-    def concatenate_dataset(int_ids, X, y, config):
+    def concatenate_dataset(X, y, config, int_ids=None):
         if config['filename'] is 'ML-CUP21-TR.csv':
-            print('type(int_ids[0]): ', type(int_ids[0]))
             dataset_lenght = X.shape[0]
-            ids_1d = numpy.array(int_ids)
+            ids_1d = numpy.array(int_ids)  # print('type(int_ids[0]): ', type(int_ids[0]))
             ids = ids_1d.reshape((dataset_lenght, 1))
-            print('type(ids[0][0]): ', type(ids[0][0]))
-            print('shape: ', ids.shape, 'shape: ', X.shape, 'shape: ', y.shape, )
+            # print('type(ids[0][0]): ', type(ids[0][0]))
+            # print('shape: ', ids.shape, 'shape: ', X.shape, 'shape: ', y.shape, )
             dataset = numpy.concatenate((ids, X, y), axis=1, dtype=object)
-            print('type(dataset[0][0]): ', type(dataset[0][0]))
-            return dataset
+            # print('type(dataset[0][0]): ', type(dataset[0][0]))
         else:
-            msg = 'error, dataset not supported: ' + config['filename']
-            raise NameError(msg)
+            dataset = numpy.concatenate((X, y), axis=1, dtype=object)
+
+        return dataset
 
     @staticmethod
     def remove_random_sample(input_ids, inX, outy, config):
-        if config['filename'] is 'ML-CUP21-TR.csv':
-            # get a random from 0 to len of remanining ids
-            random_idx = random.randrange(len(input_ids))
+        # get a random from 0 to len of remanining ids
+        random_idx = random.randrange(len(input_ids))
 
-            return Preprocessing.remove_sample(random_idx, input_ids, inX, outy, config)
-        else:
-            msg = 'error, dataset not supported: ' + config['filename']
-            raise NameError(msg)
+        return Preprocessing.remove_sample(random_idx, input_ids, inX, outy, config)
 
     @staticmethod
     def remove_sample(remove_idx, input_ids, inX, outy, config):
-        if config['filename'] is 'ML-CUP21-TR.csv':
             sample_id = input_ids.pop(remove_idx)
             sample_x = inX[remove_idx]
             inX = numpy.delete(inX, remove_idx)
             sample_y = outy[remove_idx]
             outy = numpy.delete(outy, remove_idx)
             return sample_id, sample_x, sample_y
-        else:
-            msg = 'error, dataset not supported: ' + config['filename']
-            raise NameError(msg)
 
     @staticmethod
-    def get_random_k_folds(k, input_ids, inX, outy, config):
+    def get_random_k_folds(k, inX, outy, config, input_ids=None):
         # given k as number of splits
         # generate k splits of the given data, with randomization
         # make sure format of splits is compatible with scikit-learn formats
-        if config['filename'] is 'ML-CUP21-TR.csv':
-            datasize = len(input_ids)
-            if k > datasize:
-                print('error, k > datasize', k, datasize)
+        datasize = inX.shape[0]
+        Preprocessing.check_k_folds_value(k, datasize)
 
-            folds = []
-            for fold_idx in range(k):
-                current_fold_input_ids = []
-                remaining_samples = len(input_ids)
-                fold_size = Preprocessing.calculate_fold_size(datasize, k, fold_idx)
-                x_array_shape = (fold_size, 10)
-                y_array_shape = (fold_size, 2)
-                print('x_array_shape: ', x_array_shape, ' y_array_shape: ', y_array_shape)
-                current_fold_X = numpy.empty(x_array_shape)
-                current_fold_y = numpy.empty(y_array_shape)
-                for i in range(fold_size):
-                    # fix: pool of ids, copy x and y values in new array without removing
+        if not input_ids:
+            input_ids = [x+1 for x in range(datasize)] # list(range(datasize))
 
-                    sample_id, sample_x, sample_y = Preprocessing.remove_random_sample(input_ids, inX, outy, config)
-                    current_fold_input_ids.append(sample_id)
-                    current_fold_X[i] = sample_x  # numpy.append(current_fold_X, sample_x)
-                    current_fold_y[i] = sample_y  # numpy.append(current_fold_y, sample_y)
-                current_fold = {'ids': current_fold_input_ids, 'X': current_fold_X, 'y': current_fold_y}
-                # tuple(current_fold_input_ids, current_fold_X, current_fold_y)
-                folds.append(current_fold)
-            return folds
-        else:
-            msg = 'error, dataset not supported: ' + config['filename']
+        folds = []
+        for fold_idx in range(k):
+            current_fold_input_ids = []
+            # remaining_samples = len(input_ids)
+            fold_size = Preprocessing.calculate_fold_size(datasize, k, fold_idx)
+            x_array_shape = (fold_size, config['input_dim'])
+            y_array_shape = (fold_size, config['output_dim'])
+            print('x_array_shape: ', x_array_shape, ' y_array_shape: ', y_array_shape)
+            current_fold_X = numpy.empty(x_array_shape)
+            current_fold_y = numpy.empty(y_array_shape)
+            for i in range(fold_size):
+                # fix: pool of ids, copy x and y values in new array without removing
+
+                sample_id, sample_x, sample_y = Preprocessing.remove_random_sample(input_ids, inX, outy, config)
+                current_fold_input_ids.append(sample_id)
+                current_fold_X[i] = sample_x  # numpy.append(current_fold_X, sample_x)
+                current_fold_y[i] = sample_y  # numpy.append(current_fold_y, sample_y)
+            current_fold = {'ids': current_fold_input_ids, 'X': current_fold_X, 'y': current_fold_y}
+            # tuple(current_fold_input_ids, current_fold_X, current_fold_y)
+            folds.append(current_fold)
+        return folds
+
+    @staticmethod
+    def get_sequential_k_folds(k, input_ids, inX, outy, config):
+        Preprocessing.check_k_folds_value(k, inX)
+
+        folds = []
+        for fold_idx in range(k):
+            return
+
+
+    @staticmethod
+    def check_k_folds_value(k, datasize):
+        if k > datasize:
+            msg = 'error, k > datasize', k, datasize
             raise NameError(msg)
 
     @staticmethod
@@ -151,22 +149,21 @@ class Preprocessing:
 
     @staticmethod
     def save_splits_to_files(folds, config, filename_prefix=''):
-        if config['filename'] is 'ML-CUP21-TR.csv':
-            print('saving data..')
-            folder = config['folder']
-            folder = os.path.abspath(folder)
-            if not os.path.exists(folder):
-                os.mkdir(folder)
-            for fold_idx, fold in enumerate(folds):
-                filename_suffix = '_fold'  # _fold1, _fold2, etc.
-                filename = filename_prefix + filename_suffix + str(fold_idx) + config['file_extension']
-                filepath = os.path.join(folder, filename)
-                filepath = os.path.abspath(filepath)
+        print('saving data..')
+        folder = os.path.join(Preprocessing.export_folder, config['folder'])
+        folder = os.path.abspath(folder)
+        if not os.path.exists(folder):
+            os.mkdir(folder)
+        if not filename_prefix:
+            filename_prefix = config['shortname']
+        for fold_idx, fold in enumerate(folds):
+            filename_suffix = '_fold'  # _fold1, _fold2, etc.
+            filename = filename_prefix + filename_suffix + str(fold_idx) + config['file_extension']
+            filepath = os.path.join(folder, filename)
+            filepath = os.path.abspath(filepath)
 
-                fold_dataset = Preprocessing.concatenate_dataset(fold['ids'], fold['X'], fold['y'], config)
-                savetxt(filepath, fold_dataset, fmt=config['datatypes'], delimiter=config['csv_delimiter'])
-                print('saved fold to ', filename)
-            print('data saved to files.')
-        else:
-            msg = 'error, dataset not supported: ' + config['filename']
-            raise NameError(msg)
+            fold_dataset = Preprocessing.concatenate_dataset(fold['X'], fold['y'], config, fold['ids'])
+            savetxt(filepath, fold_dataset, fmt=config['datatypes'], delimiter=config['csv_delimiter'])
+            print('saved fold to ', filename)
+        print('data saved to files.')
+        return folder

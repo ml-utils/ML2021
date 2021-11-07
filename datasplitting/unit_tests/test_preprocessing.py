@@ -40,7 +40,7 @@ class UnitTestsPreprocessing(unittest.TestCase):
         self.assertEqual(initial_lenght, len(outy))
 
         k = 5
-        folds = Preprocessing.get_random_k_folds(k, input_ids, inX, outy, config)
+        folds = Preprocessing.get_random_k_folds(k, inX, outy, config, input_ids)
         expected_min_fold_size = initial_lenght//k
         expected_max_fold_size = expected_min_fold_size
         if initial_lenght % k:
@@ -78,7 +78,7 @@ class UnitTestsPreprocessing(unittest.TestCase):
         config = Preprocessing.get_dataset_configuration('MLCUP2021')
         input_ids, inX, outy = Preprocessing.load_the_dataset(config, otherpath='../assets/')
 
-        dataset = Preprocessing.concatenate_dataset(input_ids, inX, outy, config)
+        dataset = Preprocessing.concatenate_dataset(inX, outy, config, input_ids)
         actual_shape = dataset.shape
         expected_shape = (1477, 13)
         self.assertEqual(actual_shape, expected_shape)
@@ -88,10 +88,19 @@ class UnitTestsPreprocessing(unittest.TestCase):
         config = Preprocessing.get_dataset_configuration('MLCUP2021')
         input_ids, inX, outy = Preprocessing.load_the_dataset(config, otherpath='../assets/')
         k = 5
-        folds = Preprocessing.get_random_k_folds(k, input_ids, inX, outy, config)
-        Preprocessing.save_splits_to_files(folds, config)
+        folds = Preprocessing.get_random_k_folds(k, inX, outy, config, input_ids)
+        folder = Preprocessing.save_splits_to_files(folds, config)
 
-        folder = os.path.abspath(Preprocessing.export_folder)
+        dir_contents = os.listdir(folder)
+        expected_file_count = k
+        self.assertEqual(len(dir_contents), expected_file_count)
+
+        config = Preprocessing.get_dataset_configuration('airfoil')
+        _, inX, outy = Preprocessing.load_the_dataset(config, otherpath='../assets/airfoil/')
+        k = 5
+        folds = Preprocessing.get_random_k_folds(k, inX, outy, config)
+        folder = Preprocessing.save_splits_to_files(folds, config)
+
         dir_contents = os.listdir(folder)
         expected_file_count = k
         self.assertEqual(len(dir_contents), expected_file_count)
