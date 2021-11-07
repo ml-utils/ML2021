@@ -49,7 +49,7 @@ class Preprocessing:
         # split ndarray into: ids list, input (X) and output (y) variables
 
         int_ids = None
-        if config['shortname'] is 'MLCUP2021':
+        if config['shortname'] == 'MLCUP2021':
             ids = dataset[:, 0]
             int_ids = []
             for idx_idx, idx in enumerate(ids):
@@ -66,7 +66,7 @@ class Preprocessing:
 
     @staticmethod
     def concatenate_dataset(X, y, config, int_ids=None):
-        if config['filename'] is 'ML-CUP21-TR.csv':
+        if config['filename'] == 'ML-CUP21-TR.csv':
             dataset_lenght = X.shape[0]
             ids_1d = numpy.array(int_ids)  # print('type(int_ids[0]): ', type(int_ids[0]))
             ids = ids_1d.reshape((dataset_lenght, 1))
@@ -149,7 +149,7 @@ class Preprocessing:
         folder = os.path.join(Preprocessing.export_folder, config['folder'])
         folder = os.path.abspath(folder)
         if not os.path.exists(folder):
-            os.mkdir(folder)
+            os.makedirs(folder)
         if not filename_prefix:
             filename_prefix = config['shortname']
         for fold_idx, fold in enumerate(folds):
