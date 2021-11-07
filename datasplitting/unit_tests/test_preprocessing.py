@@ -71,6 +71,9 @@ class UnitTestsPreprocessing(unittest.TestCase):
             for value in outy[idx]:
                 self.assertIsInstance(value, numpy.float64)
 
+        config = Preprocessing.get_dataset_configuration('airfoil')
+        _, inX, outy = Preprocessing.load_the_dataset(config, otherpath='../assets/airfoil/')
+
     def test_concatenate_dataset(self):
         config = Preprocessing.get_dataset_configuration('MLCUP2021')
         input_ids, inX, outy = Preprocessing.load_the_dataset(config, otherpath='../assets/')

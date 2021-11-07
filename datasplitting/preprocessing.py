@@ -12,9 +12,18 @@ class Preprocessing:
     def get_dataset_configuration(dataset_name='MLCUP2021'):
         configurations = dict()
         MLCUP2021datatypes = ['%i'] + (['%f'] * 12)  # first col is integer, the others are floats
-        configurations['MLCUP2021'] = {'input_dim': 10, 'datatypes': MLCUP2021datatypes,
-                                       'filename': 'ML-CUP21-TR.csv', 'file_extension': '.csv',
-                                       'csv_delimiter': ',', 'folder': './assets/'}
+        configurations['MLCUP2021'] = {'shortname': 'MLCUP2021', 'filename': 'ML-CUP21-TR.csv',
+                                       'input_dim': 10, 'x_begin_col_idx': 1, 'x_end_col_idx': 10,
+                                       'y_begin_col_idx': 11, 'y_end_col_idx': 12,
+                                       'datatypes': MLCUP2021datatypes,
+                                        'file_extension': '.csv', 'csv_delimiter': ',', 'folder': './assets/'}
+
+        airfoil_datatypes = ['%i', '%f']
+        configurations['airfoil'] = {'shortname': 'airfoil', 'filename': 'airfoil_self_noise.dat.csv',
+                                     'input_dim': 5, 'x_begin_col_idx': 0, 'x_end_col_idx': 4,
+                                     'y_begin_col_idx': 5, 'y_end_col_idx': 5,
+                                     'datatypes': airfoil_datatypes,
+                                     'file_extension': '.csv', 'csv_delimiter': '\t', 'folder': './assets/airfoil/'}
 
         return configurations[dataset_name]
 
@@ -39,15 +48,19 @@ class Preprocessing:
     def slice_dataset(dataset, config):
         # split ndarray into: ids list, input (X) and output (y) variables
 
-        if config['filename'] is 'ML-CUP21-TR.csv':
+        if config['shortname'] is 'MLCUP2021':
             ids = dataset[:, 0]
             int_ids = []
             for idx_idx, idx in enumerate(ids):
                 int_ids.append(int(idx))
 
+            X = dataset[:, config['x_begin_col_idx']:(config['x_end_col_idx'] + 1)]
+            y = dataset[:, config['y_begin_col_idx']:(config['y_end_col_idx'] + 1)]
+            return int_ids, X, y
+        elif config['shortname'] is 'airfoil':
             X = dataset[:, 1:(config['input_dim'] + 1)]
             y = dataset[:, 11:13]
-            return int_ids, X, y
+            return None, X, y
         else:
             msg = 'error, dataset not supported: ' + config['filename']
             raise NameError(msg)
