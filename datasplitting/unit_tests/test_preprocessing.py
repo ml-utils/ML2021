@@ -1,9 +1,7 @@
 import unittest
-
 import numpy
-
 from preprocessing import Preprocessing
-
+import os
 
 class UnitTestsPreprocessing(unittest.TestCase):
     def test_remove_random_sample(self):
@@ -68,6 +66,25 @@ class UnitTestsPreprocessing(unittest.TestCase):
             self.assertIsInstance(outy[idx], numpy.ndarray)
             for value in outy[idx]:
                 self.assertIsInstance(value, numpy.float64)
+
+    def test_concatenate_dataset(self):
+        input_ids, inX, outy = Preprocessing.load_the_dataset(folder='../assets/')
+        dataset = Preprocessing.concatenate_dataset(input_ids, inX, outy)
+        actual_shape = dataset.shape
+        expected_shape = (1477, 13)
+        self.assertEqual(actual_shape, expected_shape)
+        self.assertEqual(type(dataset[0][0]), int)
+
+    def test_save_splits_to_files(self):
+        input_ids, inX, outy = Preprocessing.load_the_dataset(folder='../assets/')
+        k = 5
+        folds = Preprocessing.get_random_k_folds(k, input_ids, inX, outy)
+        Preprocessing.save_splits_to_files(folds)
+
+        folder = os.path.abspath(Preprocessing.export_folder)
+        dir_contents = os.listdir(folder)
+        expected_file_count = k
+        self.assertEqual(len(dir_contents), expected_file_count)
 
 
 if __name__ == '__main__':

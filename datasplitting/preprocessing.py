@@ -1,5 +1,5 @@
 import numpy
-from numpy import loadtxt
+from numpy import loadtxt, savetxt
 import random
 import os
 
@@ -7,6 +7,8 @@ import os
 class Preprocessing:
     input_dim = 10
     data_folder = './assets/'
+    export_folder = './exports/'
+    csv_delimiter = ','
 
     @staticmethod
     def load_the_dataset(filename='', folder=''):
@@ -18,23 +20,39 @@ class Preprocessing:
         filepath = os.path.join(folder, filename)
         filepath = os.path.abspath(filepath)
         if os.path.isfile(filepath):
-            dataset = loadtxt(filepath, delimiter=',')  # converters = {0: datestr2num}
-            print('data loaded.')
+            dataset = loadtxt(filepath, delimiter=Preprocessing.csv_delimiter)  # converters = {0: datestr2num}
+            print('data loaded, shape: ', dataset.shape)
         else:
             msg = 'error, file not found: ' + filepath
             raise NameError(msg)
 
-        # split into input (X) and output (y) variables
+        return Preprocessing.slice_dataset(dataset)
+
+    @staticmethod
+    def slice_dataset(dataset):
+        # split ndarray into: ids list, input (X) and output (y) variables
 
         ids = dataset[:, 0]
         int_ids = []
-        print(type(ids))
         for idx_idx, idx in enumerate(ids):
             int_ids.append(int(idx))
 
         X = dataset[:, 1:(Preprocessing.input_dim + 1)]
         y = dataset[:, 11:13]
         return int_ids, X, y
+
+    @staticmethod
+    def concatenate_dataset(int_ids, X, y):
+        print('type(int_ids[0]): ', type(int_ids[0]))
+        dataset_lenght = X.shape[0]
+        ids_1d = numpy.array(int_ids)
+        ids = ids_1d.reshape((dataset_lenght, 1))
+        print('type(ids[0][0]): ', type(ids[0][0]))
+        print('shape: ', ids.shape, 'shape: ', X.shape, 'shape: ', y.shape, )
+        dataset = numpy.concatenate((ids, X, y), axis=1, dtype=object)
+        print('type(dataset[0][0]): ', type(dataset[0][0]))
+        return dataset
+
 
     @staticmethod
     def remove_random_sample(input_ids, inX, outy):
@@ -93,3 +111,24 @@ class Preprocessing:
             fold_size += 1
         return fold_size
 
+    @staticmethod
+    def save_splits_to_files(folds, filename_prefix='', folder=''):
+        print('saving data..')
+        if not folder:
+            folder = Preprocessing.export_folder
+            folder = os.path.abspath(folder)
+        if not os.path.exists(folder):
+            os.mkdir(folder)
+        for fold_idx, fold in enumerate(folds):
+            filename_suffix = '_fold'  # _fold1, _fold2, etc.
+            file_extension = '.csv'
+            filename = filename_prefix + filename_suffix + str(fold_idx) + file_extension
+            filepath = os.path.join(folder, filename)
+            filepath = os.path.abspath(filepath)
+
+            fold_dataset = Preprocessing.concatenate_dataset(fold['ids'], fold['X'], fold['y'])
+            datatypes = ['%i'] + (['%f'] * 12)
+            savetxt(filepath, fold_dataset, fmt=datatypes, delimiter=Preprocessing.csv_delimiter)
+            print('saved fold to ', filename)
+        print('data saved to files.')
+        return
