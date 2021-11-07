@@ -57,6 +57,11 @@ class Preprocessing:
 
         X = dataset[:, config['x_begin_col_idx']:(config['x_end_col_idx'] + 1)]
         y = dataset[:, config['y_begin_col_idx']:(config['y_end_col_idx'] + 1)]
+
+        if int_ids is None:
+            datasize = X.shape[0]
+            int_ids = [x + 1 for x in range(datasize)]  # list(range(datasize))
+
         return int_ids, X, y
 
     @staticmethod
@@ -83,12 +88,12 @@ class Preprocessing:
 
     @staticmethod
     def remove_sample(remove_idx, input_ids, inX, outy, config):
-            sample_id = input_ids.pop(remove_idx)
-            sample_x = inX[remove_idx]
-            inX = numpy.delete(inX, remove_idx)
-            sample_y = outy[remove_idx]
-            outy = numpy.delete(outy, remove_idx)
-            return sample_id, sample_x, sample_y
+        sample_id = input_ids.pop(remove_idx)
+        sample_x = inX[remove_idx]
+        inX = numpy.delete(inX, remove_idx)
+        sample_y = outy[remove_idx]
+        outy = numpy.delete(outy, remove_idx)
+        return sample_id, sample_x, sample_y
 
     @staticmethod
     def get_random_k_folds(k, inX, outy, config, input_ids=None):
@@ -99,7 +104,7 @@ class Preprocessing:
         Preprocessing.check_k_folds_value(k, datasize)
 
         if not input_ids:
-            input_ids = [x+1 for x in range(datasize)] # list(range(datasize))
+            input_ids = [x+1 for x in range(datasize)]  # list(range(datasize))
 
         folds = []
         for fold_idx in range(k):

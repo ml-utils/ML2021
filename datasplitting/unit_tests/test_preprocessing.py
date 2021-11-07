@@ -91,9 +91,11 @@ class UnitTestsPreprocessing(unittest.TestCase):
         folds = Preprocessing.get_random_k_folds(k, inX, outy, config, input_ids)
         folder = Preprocessing.save_splits_to_files(folds, config)
 
-        dir_contents = os.listdir(folder)
+        # todo, improve with glob, list files only
+        dir_contents_onlyfiles = [f for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f))]
+        # dir_contents = os.listdir(folder)
         expected_file_count = k
-        self.assertEqual(len(dir_contents), expected_file_count)
+        self.assertEqual(len(dir_contents_onlyfiles), expected_file_count)
 
         config = Preprocessing.get_dataset_configuration('airfoil')
         _, inX, outy = Preprocessing.load_the_dataset(config, otherpath='../assets/airfoil/')
