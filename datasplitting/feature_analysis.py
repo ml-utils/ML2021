@@ -1,5 +1,8 @@
+import math
+
 import sklearn
 from preprocessing import Preprocessing
+import matplotlib.pyplot as plt
 
 
 class FeaturesAnalysis:
@@ -21,9 +24,45 @@ class FeaturesAnalysis:
 
     @staticmethod
     def plot_correlation_matrix(X, y, config):
-        import matplotlib.pyplot as plt
-        import pandas as pd
-        dataframe = pd.DataFrame(Preprocessing.concatenate_dataset(X, y, config), dtype='float') # dataframe = dataframe.astype('float')
-        corr = dataframe.corr()
+        corr = FeaturesAnalysis.get_correlation_matrix(X, y, config)
         plt.matshow(corr)
         plt.show()
+
+    @staticmethod
+    def plot_correlation_matrix2(X, y, config):
+        import seaborn as sns
+        # https://www.kaggle.com/sudhirnl7/logistic-regression-with-stratifiedkfold
+        corr = FeaturesAnalysis.get_correlation_matrix(X, y, config)
+        plt.figure()  # figsize=(12, 6)
+        sns.heatmap(corr, cmap='Set1', annot=True)
+        plt.show()
+
+    @staticmethod
+    def get_correlation_matrix(X, y, config):
+        import pandas as pd
+        dataframe = pd.DataFrame(Preprocessing.concatenate_dataset(X, y, config), dtype='float')
+        # dataframe = dataframe.astype('float')
+        return dataframe.corr()
+
+    @staticmethod
+    def plot_boxplots(X, y, config):
+        concatenated_dataset = Preprocessing.concatenate_dataset(X, y, config)
+
+        dataset_col_num = concatenated_dataset.shape[1] # todo, from dataset shape
+        plot_side_lenght = FeaturesAnalysis.get_square_side_leght(dataset_col_num)
+        fig = plt.figure()
+        for i in range(dataset_col_num):
+            ax = fig.add_subplot(plot_side_lenght, plot_side_lenght, i+1)
+            column_data = concatenated_dataset[:, i]
+            ax.boxplot(column_data)
+            # todo: slice dataset
+        # ax1 = fig.add_subplot(221)
+        # ax2 = fig.add_subplot(222)
+        # ax2.boxplot(rainfall_north)
+        plt.show()
+
+    @staticmethod
+    def get_square_side_leght(count):
+        sqrt = math.sqrt(count)
+        side_lenght = math.ceil(sqrt)
+        return side_lenght
