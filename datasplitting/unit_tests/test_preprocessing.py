@@ -1,13 +1,13 @@
 import unittest
 import numpy
-from preprocessing import Preprocessing
+from datasplits import DataSplits
 import os
 
 
 class UnitTestsPreprocessing(unittest.TestCase):
     def test_remove_random_sample(self):
-        config = Preprocessing.get_dataset_configuration('MLCUP2021')
-        input_ids, inX, outy = Preprocessing.load_the_dataset(config, otherpath='../assets/')
+        config = DataSplits.get_dataset_configuration('MLCUP2021')
+        input_ids, inX, outy = DataSplits.load_the_dataset(config, otherpath='../assets/')
         element_9 = {'id': input_ids[8], 'x': inX[8], 'y': outy[8]}
         element_10 = {'id': input_ids[9], 'x': inX[9], 'y': outy[9]}
         element_11 = {'id': input_ids[10], 'x': inX[10], 'y': outy[10]}
@@ -18,7 +18,7 @@ class UnitTestsPreprocessing(unittest.TestCase):
 
         print(input_ids[9])
         print(element_10['id'])
-        Preprocessing.remove_sample(9, input_ids, inX, outy, config)
+        DataSplits.remove_sample(9, input_ids, inX, outy, config)
         print(input_ids[9])
         print(element_11['id'])
 
@@ -32,15 +32,15 @@ class UnitTestsPreprocessing(unittest.TestCase):
         self.assertEqual(input_ids[9], element_11['id'])
 
     def test_k_folds_split(self):
-        config = Preprocessing.get_dataset_configuration('MLCUP2021')
-        input_ids, inX, outy = Preprocessing.load_the_dataset(config, otherpath='../assets/')
+        config = DataSplits.get_dataset_configuration('MLCUP2021')
+        input_ids, inX, outy = DataSplits.load_the_dataset(config, otherpath='../assets/')
         initial_lenght = len(input_ids)
         self.assertGreater(initial_lenght, 0)
         self.assertEqual(initial_lenght, len(inX))
         self.assertEqual(initial_lenght, len(outy))
 
         k = 5
-        folds = Preprocessing.get_random_k_folds(k, inX, outy, config, input_ids)
+        folds = DataSplits.get_random_k_folds(k, inX, outy, config, input_ids)
         expected_min_fold_size = initial_lenght//k
         expected_max_fold_size = expected_min_fold_size
         if initial_lenght % k:
@@ -59,8 +59,8 @@ class UnitTestsPreprocessing(unittest.TestCase):
         self.assertEqual(total_folds_samples, initial_lenght)
 
     def test_load_the_dataset(self):
-        config = Preprocessing.get_dataset_configuration('MLCUP2021')
-        input_ids, inX, outy = Preprocessing.load_the_dataset(config, otherpath='../assets/')
+        config = DataSplits.get_dataset_configuration('MLCUP2021')
+        input_ids, inX, outy = DataSplits.load_the_dataset(config, otherpath='../assets/')
 
         for idx in input_ids:
             idx = idx - 1
@@ -71,25 +71,25 @@ class UnitTestsPreprocessing(unittest.TestCase):
             for value in outy[idx]:
                 self.assertIsInstance(value, numpy.float64)
 
-        config = Preprocessing.get_dataset_configuration('airfoil')
-        _, inX, outy = Preprocessing.load_the_dataset(config, otherpath='../assets/airfoil/')
+        config = DataSplits.get_dataset_configuration('airfoil')
+        _, inX, outy = DataSplits.load_the_dataset(config, otherpath='../assets/airfoil/')
 
     def test_concatenate_dataset(self):
-        config = Preprocessing.get_dataset_configuration('MLCUP2021')
-        input_ids, inX, outy = Preprocessing.load_the_dataset(config, otherpath='../assets/')
+        config = DataSplits.get_dataset_configuration('MLCUP2021')
+        input_ids, inX, outy = DataSplits.load_the_dataset(config, otherpath='../assets/')
 
-        dataset = Preprocessing.concatenate_dataset(inX, outy, config, input_ids)
+        dataset = DataSplits.concatenate_dataset(inX, outy, config, input_ids)
         actual_shape = dataset.shape
         expected_shape = (1477, 13)
         self.assertEqual(actual_shape, expected_shape)
         self.assertEqual(type(dataset[0][0]), int)
 
     def test_save_splits_to_files(self):
-        config = Preprocessing.get_dataset_configuration('MLCUP2021')
-        input_ids, inX, outy = Preprocessing.load_the_dataset(config, otherpath='../assets/')
+        config = DataSplits.get_dataset_configuration('MLCUP2021')
+        input_ids, inX, outy = DataSplits.load_the_dataset(config, otherpath='../assets/')
         k = 5
-        folds = Preprocessing.get_random_k_folds(k, inX, outy, config, input_ids)
-        folder = Preprocessing.save_splits_to_files(folds, config)
+        folds = DataSplits.get_random_k_folds(k, inX, outy, config, input_ids)
+        folder = DataSplits.save_splits_to_files(folds, config)
 
         # todo, improve with glob, list files only
         dir_contents_onlyfiles = [f for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f))]
@@ -97,11 +97,11 @@ class UnitTestsPreprocessing(unittest.TestCase):
         expected_file_count = k
         self.assertEqual(len(dir_contents_onlyfiles), expected_file_count)
 
-        config = Preprocessing.get_dataset_configuration('airfoil')
-        _, inX, outy = Preprocessing.load_the_dataset(config, otherpath='../assets/airfoil/')
+        config = DataSplits.get_dataset_configuration('airfoil')
+        _, inX, outy = DataSplits.load_the_dataset(config, otherpath='../assets/airfoil/')
         k = 5
-        folds = Preprocessing.get_random_k_folds(k, inX, outy, config)
-        folder = Preprocessing.save_splits_to_files(folds, config)
+        folds = DataSplits.get_random_k_folds(k, inX, outy, config)
+        folder = DataSplits.save_splits_to_files(folds, config)
 
         dir_contents = os.listdir(folder)
         expected_file_count = k

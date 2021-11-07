@@ -1,7 +1,7 @@
 import math
 
 import sklearn
-from preprocessing import Preprocessing
+from datasplits import DataSplits
 import matplotlib.pyplot as plt
 
 
@@ -40,13 +40,13 @@ class FeaturesAnalysis:
     @staticmethod
     def get_correlation_matrix(X, y, config):
         import pandas as pd
-        dataframe = pd.DataFrame(Preprocessing.concatenate_dataset(X, y, config), dtype='float')
+        dataframe = pd.DataFrame(DataSplits.concatenate_dataset(X, y, config), dtype='float')
         # dataframe = dataframe.astype('float')
         return dataframe.corr()
 
     @staticmethod
     def plot_boxplots(X, y, config):
-        concatenated_dataset = Preprocessing.concatenate_dataset(X, y, config)
+        concatenated_dataset = DataSplits.concatenate_dataset(X, y, config)
 
         dataset_col_num = concatenated_dataset.shape[1] # todo, from dataset shape
         plot_side_lenght = FeaturesAnalysis.get_square_side_leght(dataset_col_num)

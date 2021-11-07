@@ -4,7 +4,7 @@ import random
 import os
 
 
-class Preprocessing:
+class DataSplits:
     data_folder = './assets/'
     export_folder = './exports/'
 
@@ -42,7 +42,7 @@ class Preprocessing:
             msg = 'error, file not found: ' + filepath
             raise NameError(msg)
 
-        return Preprocessing.slice_dataset(dataset, config)
+        return DataSplits.slice_dataset(dataset, config)
 
     @staticmethod
     def slice_dataset(dataset, config):
@@ -84,7 +84,7 @@ class Preprocessing:
         # get a random from 0 to len of remanining ids
         random_idx = random.randrange(len(input_ids))
 
-        return Preprocessing.remove_sample(random_idx, input_ids, inX, outy, config)
+        return DataSplits.remove_sample(random_idx, input_ids, inX, outy, config)
 
     @staticmethod
     def remove_sample(remove_idx, input_ids, inX, outy, config):
@@ -101,7 +101,7 @@ class Preprocessing:
         # generate k splits of the given data, with randomization
         # make sure format of splits is compatible with scikit-learn formats
         datasize = inX.shape[0]
-        Preprocessing.check_k_folds_value(k, datasize)
+        DataSplits.check_k_folds_value(k, datasize)
 
         if not input_ids:
             input_ids = [x+1 for x in range(datasize)]  # list(range(datasize))
@@ -110,7 +110,7 @@ class Preprocessing:
         for fold_idx in range(k):
             current_fold_input_ids = []
             # remaining_samples = len(input_ids)
-            fold_size = Preprocessing.calculate_fold_size(datasize, k, fold_idx)
+            fold_size = DataSplits.calculate_fold_size(datasize, k, fold_idx)
             x_array_shape = (fold_size, config['input_dim'])
             y_array_shape = (fold_size, config['output_dim'])
             print('x_array_shape: ', x_array_shape, ' y_array_shape: ', y_array_shape)
@@ -119,7 +119,7 @@ class Preprocessing:
             for i in range(fold_size):
                 # fix: pool of ids, copy x and y values in new array without removing
 
-                sample_id, sample_x, sample_y = Preprocessing.remove_random_sample(input_ids, inX, outy, config)
+                sample_id, sample_x, sample_y = DataSplits.remove_random_sample(input_ids, inX, outy, config)
                 current_fold_input_ids.append(sample_id)
                 current_fold_X[i] = sample_x  # numpy.append(current_fold_X, sample_x)
                 current_fold_y[i] = sample_y  # numpy.append(current_fold_y, sample_y)
@@ -146,7 +146,7 @@ class Preprocessing:
     @staticmethod
     def save_splits_to_files(folds, config, filename_prefix=''):
         print('saving data..')
-        folder = os.path.join(Preprocessing.export_folder, config['folder'])
+        folder = os.path.join(DataSplits.export_folder, config['folder'])
         folder = os.path.abspath(folder)
         if not os.path.exists(folder):
             os.makedirs(folder)
@@ -158,7 +158,7 @@ class Preprocessing:
             filepath = os.path.join(folder, filename)
             filepath = os.path.abspath(filepath)
 
-            fold_dataset = Preprocessing.concatenate_dataset(fold['X'], fold['y'], config, fold['ids'])
+            fold_dataset = DataSplits.concatenate_dataset(fold['X'], fold['y'], config, fold['ids'])
             savetxt(filepath, fold_dataset, fmt=config['datatypes'], delimiter=config['csv_delimiter'])
             print('saved fold to ', filename)
         print('data saved to files.')

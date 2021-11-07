@@ -1,4 +1,4 @@
-from preprocessing import Preprocessing
+from datasplits import DataSplits
 from feature_analysis import FeaturesAnalysis
 
 if __name__ == '__main__':
@@ -6,10 +6,10 @@ if __name__ == '__main__':
     # load_model()
     # lemon_squeeze_cross_validation()
 
-    dataset_config = Preprocessing.get_dataset_configuration('airfoil')
-    _, inX, outy = Preprocessing.load_the_dataset(dataset_config)
+    dataset_config = DataSplits.get_dataset_configuration('airfoil')
+    _, inX, outy = DataSplits.load_the_dataset(dataset_config)
     k = 5
-    folds = Preprocessing.get_random_k_folds(k, inX, outy, dataset_config)
+    folds = DataSplits.get_random_k_folds(k, inX, outy, dataset_config)
     # todo: only use the training folds for the correlation matrix
     # todo: add merge folds method, to merge all the training folds into one
 
