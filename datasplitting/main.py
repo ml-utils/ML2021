@@ -14,10 +14,11 @@ if __name__ == '__main__':
     # todo: add merge folds method, to merge all the training folds into one
 
     # FeaturesAnalysis.plot_correlation_matrix2(inX, outy, dataset_config)
-    FeaturesAnalysis.plot_boxplots(inX, outy, dataset_config)
+    FeaturesAnalysis.plot_densities(inX, outy, dataset_config)
 
+    # todo: measures to check if a variable is gaussian
     # todo: print box plots of the same variable along different splits; see also standard deviation
-    # todo: plot ..histogram/scatterplot distribution of each variable, to see if gaussia, power law, etc.
+    # (optional: scatterplots btw input variables and inputs)
 
     # todo, draw some learning curves (regression, scikit library nn, ..)
     # todo gridsearch cross validation

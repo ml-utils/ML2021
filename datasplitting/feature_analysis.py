@@ -3,6 +3,14 @@ import math
 import sklearn
 from datasplits import DataSplits
 import matplotlib.pyplot as plt
+import seaborn as sns
+from enum import Enum
+
+
+class PlotType(Enum):
+    BOXPLOT = 1
+    HIST = 2
+    DIST = 3
 
 
 class FeaturesAnalysis:
@@ -30,7 +38,6 @@ class FeaturesAnalysis:
 
     @staticmethod
     def plot_correlation_matrix2(X, y, config):
-        import seaborn as sns
         # https://www.kaggle.com/sudhirnl7/logistic-regression-with-stratifiedkfold
         corr = FeaturesAnalysis.get_correlation_matrix(X, y, config)
         plt.figure()  # figsize=(12, 6)
@@ -46,6 +53,18 @@ class FeaturesAnalysis:
 
     @staticmethod
     def plot_boxplots(X, y, config):
+        FeaturesAnalysis.plot_univariate(X, y, config, PlotType.BOXPLOT)
+
+    @staticmethod
+    def plot_histograms(X, y, config):
+        FeaturesAnalysis.plot_univariate(X, y, config, PlotType.HIST)
+
+    @staticmethod
+    def plot_densities(X, y, config):
+        FeaturesAnalysis.plot_univariate(X, y, config, PlotType.DIST)
+
+    @staticmethod
+    def plot_univariate(X, y, config, plot_type):
         concatenated_dataset = DataSplits.concatenate_dataset(X, y, config)
 
         dataset_col_num = concatenated_dataset.shape[1]
@@ -54,7 +73,18 @@ class FeaturesAnalysis:
         for i in range(dataset_col_num):
             ax = fig.add_subplot(plot_side_lenght, plot_side_lenght, i+1)
             column_data = concatenated_dataset[:, i]
-            ax.boxplot(column_data, patch_artist=True, notch='True')
+            # NB switch/match construct is from python 3.10 only
+            if plot_type == PlotType.BOXPLOT:
+                ax.boxplot(column_data, patch_artist=True, notch='True')
+            elif plot_type == PlotType.HIST:
+                binwidth = 10
+                bins = int(len(column_data) / binwidth)
+                ax.hist(column_data, bins=bins, density=True)
+            elif plot_type == PlotType.DIST:
+                binwidth = 10
+                bins = int(len(column_data) / binwidth)
+                sns.distplot(column_data, ax=ax, hist=True)  # , bins=bins
+                # sns.displot(data=column_data, ax=ax, kind='hist')  # kind='kde'
         plt.show()
 
     @staticmethod
