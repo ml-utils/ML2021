@@ -129,6 +129,16 @@ class DataSplits:
         return folds
 
     @staticmethod
+    def merge_folds(folds, config):
+        rows_axis = 0
+        cols_axis = 1
+        folds_as_ndarrays = []
+        for fold in folds:
+            folds_as_ndarrays.append(DataSplits.concatenate_dataset(fold['X'], fold['y'], config, fold['ids']))
+        dataset = numpy.concatenate(folds_as_ndarrays, axis=rows_axis)  # , dtype=object
+        return dataset
+
+    @staticmethod
     def check_k_folds_value(k, datasize):
         if k > datasize:
             msg = 'error, k > datasize', k, datasize

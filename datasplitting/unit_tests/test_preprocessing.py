@@ -107,6 +107,19 @@ class UnitTestsPreprocessing(unittest.TestCase):
         expected_file_count = k
         self.assertEqual(len(dir_contents), expected_file_count)
 
+    def test_merge_folds(self):
+        config = DataSplits.get_dataset_configuration('airfoil')
+        input_ids, inX, outy = DataSplits.load_the_dataset(config, otherpath='../assets/airfoil/')
+        k = 5
+        folds = DataSplits.get_random_k_folds(k, inX, outy, config, input_ids)
+        dev_folds = folds[0:k-1]
+        merged_dev_set = DataSplits.merge_folds(dev_folds, config)
+        expected_lenght = 0
+        for fold in dev_folds:
+            datasize = fold['X'].shape[0]
+            expected_lenght += datasize
+        self.assertEqual(len(merged_dev_set), expected_lenght)
+
 
 if __name__ == '__main__':
     unittest.main()

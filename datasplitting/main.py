@@ -11,14 +11,14 @@ if __name__ == '__main__':
     k = 5
     folds = DataSplits.get_random_k_folds(k, inX, outy, dataset_config)
     # todo: only use the training folds for the correlation matrix
-    # todo: add merge folds method, to merge all the training folds into one
+    # todo: use merged folds for the training set
 
     # FeaturesAnalysis.plot_correlation_matrix2(inX, outy, dataset_config)
     FeaturesAnalysis.plot_densities(inX, outy, dataset_config)
 
-    # todo: measures to check if a variable is gaussian
     # todo: print box plots of the same variable along different splits; see also standard deviation
     # (optional: scatterplots btw input variables and inputs)
+    # (optional: measures to check if a variable is gaussian)
 
     # todo, draw some learning curves (regression, scikit library nn, ..)
     # todo gridsearch cross validation
