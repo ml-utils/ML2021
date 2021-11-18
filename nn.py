@@ -91,6 +91,8 @@ class neuralnet:
 
         output = self.evaluate(input)
         error_signal = output - label
+        # todo update weights etc
+        return error_signal
 
 
 
