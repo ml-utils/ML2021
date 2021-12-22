@@ -35,7 +35,7 @@ def tanhprime(a, b):
 
 class Layer:
 
-    def __init__(self, fan_in, fan_out, activation, strtin_range, act_parameters=(1, 1)):
+    def __init__(self, fan_in, fan_out, activation, strtin_range, act_parameters=(1, 1), **kwargs):
 
         # initialization inputs:
         # fan_in (int):          number of inputs
@@ -47,11 +47,19 @@ class Layer:
         self.fan_in = fan_in
         self.fan_out = fan_out
 
-        # weights are implemented as a (fan_out) x (fan_in + 1) matrix using the convention of writing the bias as
-        # the last column of the matrix
-        rng = default_rng()
-        self.weights = strtin_range*(2*rng.random((fan_out, fan_in+1)) - 1)
-        self.weights /= np.sqrt(fan_in)
+        if 'weights' is not in kwargs.keys():
+            # weights are implemented as a (fan_out) x (fan_in + 1) matrix using the convention of writing the bias as
+            # the last column of the matrix
+            temp_rng = default_rng()
+            self.weights = strtin_range*(2*temp_rng.random((fan_out, fan_in+1)) - 1)
+            self.weights /= np.sqrt(fan_in)
+            self.delta_weights = np.zeros([fan_out, fan_in + 1])
+
+        else:
+            self.weights = kwargs['weights']
+            self.delta_weights = kwargs['dweights']
+
+        self.delta_weights_old = np.zeros([fan_out, fan_in + 1])
 
         if activation == 'linear':
             self.activation = linear
@@ -69,12 +77,25 @@ class Layer:
         self.derivative = np.vectorize(self.derivative)
 
         self.role = 'hidden'  # layer is initialized as hidden unit by default, use switch_role() to change to output
-        self.delta_weights = np.zeros([fan_out, fan_in + 1])
-        self.delta_weights_old = np.zeros([fan_out, fan_in + 1])
         self.latest_out = np.empty(fan_out)
         self.latest_net = np.empty(fan_out)
         self.latest_in = np.empty(fan_in + 1)
         self.latest_in[-1] = 1  # last column of latest_in is always set to 1 to implement bias-as-matrix-column
+
+    @classmethod
+    def load_file(cls, base_path, layer_number, activation, act_parameters=(1, 1)):
+
+        weight_path = os.path.join(base_path, 'layer_{}_weights.csv'.format(layer_number))
+        delta_path = os.path.join(base_path, 'layer_{}_deltas.csv'.format(layer_number))
+        weights = np.loadtxt(weight_path)
+        deltas = np.loadtxt(delta_path)
+        assert(deltas.shape == weights.shape)
+        fan_out = weights.shape[0]
+        fan_in = weights.shape[1] - 1
+
+        layer = Layer(fan_in, fan_out, activation, None, act_parameters, weights=weights, deltas=deltas)
+
+        return layer
 
     # switch_role() sets role of layer as output unit
     def switch_role(self, task):
@@ -120,7 +141,8 @@ class Layer:
 
 class NeuralNet:
 
-    def __init__(self, activation, units=(2, 2), eta=0.5, alpha=0.4, lamda=0.1, mb=20, task='classification', **kwargs):
+    def __init__(self, activation, units=(2, 2), eta=0.5, alpha=0.4, lamda=0.1, mb=20,
+                 task='classification', placeholder=False, **kwargs):
 
         # activation (string): name of activation function used
         #                      (TODO: add way to use different functions for different layers)
@@ -129,18 +151,21 @@ class NeuralNet:
         # alpha (float): momentum parameter
         # lamda (float): regularization parameter
         # mb (int): number of patterns in each mini-batch
+        # task (string): task the NN is meant to perform (classification or regression)
         # **kwargs: idk it'll be useful for something
 
-        self.fan_in = units[0]
-        self.fan_out = units[-1]
         self.layers = []
 
-        for i in range(len(units)-1):
+        if not placeholder:
+            self.fan_in = units[0]
+            self.fan_out = units[-1]
 
-            lay = Layer(units[i], units[i+1], activation, 0.1)
-            self.layers.append(lay)
+            for i in range(len(units)-1):
 
-        self.layers[-1].switch_role(task)
+                lay = Layer(units[i], units[i+1], activation, 0.1)
+                self.layers.append(lay)
+
+            self.layers[-1].switch_role(task)
 
         self.eta = eta/mb # learning rate
         self.alpha = alpha/mb # momentum parameter
@@ -156,16 +181,38 @@ class NeuralNet:
         self.shift_vector = None    # placeholder for internal validation set
         self.scale_vector = None    # placeholder for internal validation set
 
-        root_dir = os.getcwd()
+        base_dir = os.getcwd()
         if 'dir' in kwargs.keys():
-            self.net_dir = os.path.join(root_dir, kwargs['dir'])
+            self.net_dir = os.path.join(base_dir, kwargs['dir'])
 
         else:
             cur_time = datetime.now().strftime("%Y%m%d-%H%M%S")
-            self.net_dir = os.path.join(root_dir, cur_time)
+            self.net_dir = os.path.join(base_dir, cur_time)
 
-        # save the random starting conditions
+        # save the starting conditions, if random:
         self.savestate(0)
+
+    @classmethod
+    def load_net(cls, path, activation, eta=0.5, alpha=0.4, lamda=0.1, mb=20, task='classification', **kwargs):
+
+        net = NeuralNet(activation, eta=0.5, alpha=0.4, lamda=0.1, mb=20,
+                        task='classification', placeholder=True, **kwargs)
+
+        all_files = os.listdir(path)
+        layer_files = [file for file in all_files if (file[:6] == 'layer_' and file[-4:] == '.csv')]
+        if (len(layer_files) % 2):
+            ValueError('Mismatch in number of layer files in folder {}'.format(path))
+        num_of_layers = len(layer_files)/2
+
+        for i in range(num_of_layers):
+            lay = Layer.load_file(path, i, activation)
+            net.layers.append(lay)
+
+        net.layers[-1].switch_role(task)
+        net.fan_in = net.layers[0].fan_in
+        net.fan_out = net.layers[-1].fan_out
+
+        return net
 
     # stores training set inside of neural net
     def load_training(self, training_set, out=1):
@@ -340,13 +387,6 @@ if __name__ == '__main__':
     split_id = int(np.round(example_number*train_ratio))
 
     test_net = NeuralNet('sigmoid', net_shape, task='regression')
-
-    # TODO: implement variable normalization insinde the NN class
-    train_avg = np.average(data[:split_id], axis=0)
-    train_std = np.std(data[:split_id], axis=0)
-
-    data -= train_avg
-    data /= train_std
 
     test_net.load_training(data[:split_id], 1)
     test_net.load_validation(data[split_id:], 1)
