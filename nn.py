@@ -149,8 +149,12 @@ class NeuralNet:
         self.batch_SE = 0 # squared error on latest mini-batch
         self.epoch_SE = 0 # squared error on latest epoch
 
-        self.validation_set = None
-        self.training_set = None
+        self.validation_set = None  # placeholder for internal validation set
+        self.training_set = None    # placeholder for internal training set
+
+        # placeholders for vectors used for variable normalization x'_i = (x_i - <x_i>)/std(x_i)
+        self.shift_vector = None    # placeholder for internal validation set
+        self.scale_vector = None    # placeholder for internal validation set
 
         root_dir = os.getcwd()
         if 'dir' in kwargs.keys():
@@ -173,20 +177,38 @@ class NeuralNet:
         if out != self.fan_out:
             raise ValueError('Number of output variables in training set doesn\'t match output units!')
 
-        self.training_set = training_set
+        # calculates average and standard deviation for each input and output variable over the training set
+        # these are then used to facilitate training by normalizing each variable so that it has 0 average and std 1
+
+        self.shift_vector = np.average(training_set, axis=0)
+        self.scale_vector = np.std(training_set, axis=0)
+
+        # stores normalized training set
+
+        self.training_set = (training_set - self.shift_vector)/self.scale_vector
+
+        # applies normalization to validation set if self.load_validation() was called before self.load_training()
+        if self.validation_set is not None:
+            self.validation_set -= self.shift_vector
+            self.validation_set /= self.scale_vector
 
     # stores validation set inside of neural net
     def load_validation(self, validation_set, out=1):
-        x = validation_set[:, :-out]
-        y = validation_set[:, -out]
-        inp = x.shape[1]
+
+        inp = validation_set.shape[1] - out
         if inp != self.fan_in:
             raise ValueError('Number of input variables in validation set doesn\'t match input units!')
 
         if out != self.fan_out:
             raise ValueError('Number of output variables in validation set doesn\'t match output units!')
 
-        self.validation_set = validation_set
+        # stores plain validation set if self.load_training hasn't been called already
+        if self.shift_vector is None:
+            self.validation_set = validation_set
+
+        # stores normalized validation set if self.load_training has already been called
+        else:
+            self.validation_set = (validation_set - self.shift_vector)/self.scale_vector
 
     # savestate: save current state of neural net to folder
     # each folder is named after the training epoch it represents and contains one deltas.csv and one weights.csv
@@ -213,18 +235,30 @@ class NeuralNet:
 
         copytree(cur_dir, latest_dir)
 
-    # evaluate: evaluate input using current weights
-    def evaluate(self, entry):
+    # internal_evaluate: evaluates **normalized** input and returns **normalized** output; only use this on
+    # internally-stored data such as training and validation sets; for external data such as assessment sets or
+    # deployment data use self.evaluate()
+
+    def internal_evaluate(self, entry):
 
         for lay in self.layers:
             entry = lay.evaluate(entry)
 
         return entry
 
+    # evaluate: evaluates non-normalized (original format) inputs and returns non-normalized outputs
+    def evaluate(self, entry):
+
+        entry = (entry - self.shift_vector[:self.fan_in])/self.scale_vector[:self.fan_in]
+        output = self.internal_evaluate(entry)
+        output = output*self.scale_vector[self.fan_in:] + self.shift_vector[self.fan_in:]
+
+        return output
+
     # pattern_update: evaluate input using current weights, then back-propagates error through the entire network
     def pattern_update(self, entry, label):
 
-        output = self.evaluate(entry)
+        output = self.internal_evaluate(entry)
         error_signal = output - label
         if type(error_signal) is np.ndarray:
             self.epoch_SE += (error_signal**2).sum()
@@ -284,10 +318,10 @@ class NeuralNet:
             x = example[:self.fan_in]
             y = example[-self.fan_out:]
             if type(y) is np.ndarray:
-                error += ((y - self.evaluate(x))**2).sum()
+                error += ((y - self.internal_evaluate(x))**2).sum()
 
             else:
-                error += (y - self.evaluate(x))**2
+                error += (y - self.internal_evaluate(x))**2
 
         error /= self.validation_set.shape[0]
         return error
