@@ -288,7 +288,7 @@ def plot_accuracy(train_accu, eval_accu):
     plt.show()
 
 
-def plot_predicted_points(device, model, validationloader, dev_set):
+def plot_predicted_points(device, model, validationloader, dev_set, subtitle):
     # todo: plot lines for labels and one for predicted by model
     # inverse transform of the RobustScaler
     # sort the labels (x axis is for the index 1-n), plot values as y
@@ -322,7 +322,9 @@ def plot_predicted_points(device, model, validationloader, dev_set):
     f, (ax2) = plt.subplots(1, 1, sharey=False)
     l2 = ax2.scatter(range(len(actual_labels)), actual_labels, color='blue')  #  l2, = ax2.plot(actual_labels, '-o', color='blue')
     l3 = ax2.scatter(range(len(predicted_labels)), predicted_labels, color='orange')  # '-o',
-    ax2.set_title('actual and predicted labels')
+    ax2.set_title('actual and predicted labels' + subtitle)
+    ax2.set_xlabel('sample index')
+    ax2.set_ylabel('sample label value')
     plt.legend([l2, l3], ["actual_labels", "predicted_labels"])
     plt.show()
 
@@ -346,7 +348,7 @@ def main():
     print('getting data..')
     root_dir = os.getcwd()
     print('root dir:', root_dir)
-    file_abs_path = os.path.join(root_dir, '..\\assets\\airfoil\\airfoil_self_noise.dat.csv')
+    file_abs_path = os.path.join(root_dir, '../datasplitting/assets/airfoil/airfoil_self_noise.dat.csv')
     print('file abs path:', file_abs_path)
 
     # todo: preprocessing, visualize data: boxplots, ..gaussians for each feature and output dim
@@ -361,8 +363,8 @@ def main():
                                 loss_fn, train_set_loader, validation_set_loader)
 
     plot_learning_curves(epochs_sequence, train_losses, train_errors, eval_errors)
-    plot_predicted_points(device, model, train_set_loader, dev_set)
-    plot_predicted_points(device, model, validation_set_loader, dev_set)
+    plot_predicted_points(device, model, train_set_loader, dev_set, ' (training set)')
+    plot_predicted_points(device, model, validation_set_loader, dev_set, ' (validation set)')
 
 
 if __name__ == '__main__':
