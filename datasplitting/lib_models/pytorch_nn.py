@@ -191,26 +191,6 @@ def evaluate(epoch, testloader, device, model, loss_fn, eval_errors, eval_accu):
     print('Test Error: %.3f | Accuracy: %.3f' % (test_error, accu))
 
 
-def check_install():
-    import torch
-    from torch import nn
-    from torch.utils.data import DataLoader
-    from torchvision import datasets
-    from torchvision.transforms import ToTensor, Lambda, Compose
-    import matplotlib.pyplot as plt
-
-    x = torch.rand(5, 3)
-    print(x)
-    print(torch.cuda.is_available())
-
-    trainloader, testloader = get_dev_data_from_library(mini_batch_size=64)
-
-    for X, y in trainloader:
-        print("Shape of X [N, C, H, W]: ", X.shape)  # Shape of X [N, C, H, W]:  torch.Size([4, 3, 32, 32])
-        print("Shape of y: ", y.shape, y.dtype)  # Shape of y:  torch.Size([4]) torch.int64
-        break
-
-
 def get_dev_data_from_file(mini_batch_size, filename, rows_count=None, cols_count=None):
     from torch.utils.data import DataLoader
     print('getting data from ', filename, '..')
@@ -333,21 +313,6 @@ def plot_predicted_points(device, model, validationloader, dev_set):
                 actual_labels_normalized = torch.cat((actual_labels_normalized, labels))
                 predicted_labels_normalized = torch.cat((predicted_labels_normalized, outputs))
 
-
-       # for features, actual_label in validation_set:
-            # inputs, actual_labels_batch = validationloader[i]
-            # predicted_labels_batch = model(inputs)
-        #    predicted_label = model(features)
-        #    actual_labels_normalized.append(actual_label)
-        #    predicted_labels_normalized.append(predicted_label)
-
-    #transform
-    # from torch tensor to needed: numpy.ndarray
-
-
-    # actual_labels_normalized = actual_labels_normalized.reshape(-1, 1)  # AttributeError: 'list' object has no attribute 'reshape'
-    # predicted_labels_normalized = predicted_labels_normalized.reshape(-1, 1)
-
     actual_labels = dev_set.labels_scaler.inverse_transform(actual_labels_normalized.cpu().numpy()).tolist()
     predicted_labels = dev_set.labels_scaler.inverse_transform(predicted_labels_normalized.cpu().numpy()).tolist()
 
@@ -361,15 +326,9 @@ def plot_predicted_points(device, model, validationloader, dev_set):
     plt.legend([l2, l3], ["actual_labels", "predicted_labels"])
     plt.show()
 
-    #for data in tqdm(validationloader):
-    #    inputs, actual_labels = data[0].to(device), data[1].to(device)
-    #    predicted_outputs = model(inputs)
-
 
 def main():
     # https://pytorch.org/tutorials/beginner/basics/buildmodel_tutorial.html
-
-    #check_install()
 
     # hidden_layer_sizes = (3*32*32, 512, 512, 10)
     hidden_layer_sizes_airflow = (5, 120, 1)  # (5, 10, 10, 10, 1)
@@ -379,9 +338,6 @@ def main():
     momentum = 0.9
     l2_lambda = 0.0014  # 0.003  # 0.005  # 0.01  # 0.001
     loss_fn = nn.MSELoss()  # nn.CrossEntropyLoss()  # BCELoss
-    # UserWarning: Using a target size (torch.Size([50])) that is different
-    # to the input size (torch.Size([50, 1])). This will likely lead to incorrect
-    # results due to broadcasting. Please ensure they have the same size
 
     print('setting cpus/gpus..')
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -407,31 +363,6 @@ def main():
     plot_learning_curves(epochs_sequence, train_losses, train_errors, eval_errors)
     plot_predicted_points(device, model, train_set_loader, dev_set)
     plot_predicted_points(device, model, validation_set_loader, dev_set)
-
-
-def train_other_model(device, model):
-    # other model
-    X = torch.rand(1, 28, 28, device=device)
-    logits = model(X)
-    pred_probab = nn.Softmax(dim=1)(logits)
-    y_pred = pred_probab.argmax(1)
-    print(f"Predicted class: {y_pred}")
-
-    # create a summary writer using the specified folder name.
-    with SummaryWriter("my_experiment") as writer:
-        # folder location: my_experiment
-
-        for n_iter in range(100):
-            writer.add_scalar('Loss/train', np.random.random(), n_iter)
-            writer.add_scalar('Loss/test', np.random.random(), n_iter)
-            writer.add_scalar('Accuracy/train', np.random.random(), n_iter)
-            writer.add_scalar('Accuracy/test', np.random.random(), n_iter)
-
-        for n_iter in range(100):
-            writer.add_scalar('Loss/train', np.random.random(), n_iter)
-            writer.add_scalar('Loss/test', np.random.random(), n_iter)
-            writer.add_scalar('Accuracy/train', np.random.random(), n_iter)
-            writer.add_scalar('Accuracy/test', np.random.random(), n_iter)
 
 
 if __name__ == '__main__':
