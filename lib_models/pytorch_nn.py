@@ -124,6 +124,7 @@ def train(trainloader, device, model, loss_fn, train_accuracy_all_epochs, train_
     for batch_of_data in tqdm(trainloader):
         inputs, labels = batch_of_data[0].to(device), batch_of_data[1].to(device)
 
+        optimizer.zero_grad()  # clear previous gradients
         outputs = model(inputs)
         # print('outputs this batch: ')
         # print(outputs.tolist())
@@ -135,7 +136,7 @@ def train(trainloader, device, model, loss_fn, train_accuracy_all_epochs, train_
         # outputs = outputs.to(device, dtype=torch.float64)
         # labels = labels.to(device, dtype=torch.float64)
 
-        error_this_batch = loss_fn(outputs, labels)
+        error_this_batch = loss_fn(outputs, labels)  # NB: type(error_this_batch): torch.Tensor
         running_error_this_epoch += error_this_batch.item()
 
         # Replaces pow(2.0) with abs() for L1 regularization
@@ -143,8 +144,7 @@ def train(trainloader, device, model, loss_fn, train_accuracy_all_epochs, train_
         loss_this_batch = error_this_batch + (l2_lambda * l2_norm)
 
         # todo: check how it's done (backprop, weights update, gradient descent, derivative of loss)
-        optimizer.zero_grad()  # clear previous gradients
-        loss_this_batch.backward()  # backward pass
+        loss_this_batch.backward()  # backward pass (why called on loss/error object? (which is a tensor))
         optimizer.step()
         running_loss_this_epoch += loss_this_batch.item()
 
@@ -161,7 +161,7 @@ def train(trainloader, device, model, loss_fn, train_accuracy_all_epochs, train_
     train_errors_all_epochs.append(final_train_error_this_epoch)
     train_losses_all_epochs.append(final_train_loss_this_epoch)
     train_accuracy_all_epochs.append(accu)
-    print('Epoch train Loss: %.3f | Train Error: %.3f | Accuracy: %.3f' % (final_train_loss_this_epoch, final_train_error_this_epoch, accu))
+    print('On training with backprop after each minibatch in epoch: Loss : %.3f | Error: %.3f | Accuracy: %.3f' % (final_train_loss_this_epoch, final_train_error_this_epoch, accu))
 
 
 def evaluate(dataloader, device, model, loss_fn, accuracy_all_epochs, errors_all_epochs):
@@ -194,7 +194,7 @@ def evaluate(dataloader, device, model, loss_fn, accuracy_all_epochs, errors_all
     errors_all_epochs.append(final_test_error_this_epoch)
     accuracy_all_epochs.append(accu)
 
-    print('Epoch validation/test Error: %.3f | Accuracy: %.3f' % (final_test_error_this_epoch, accu))
+    print('Error at the end of epoch: %.3f | Accuracy: %.3f' % (final_test_error_this_epoch, accu))
 
 
 def get_dev_data_from_file(mini_batch_size, filename, rows_count=None, cols_count=None):
@@ -254,7 +254,9 @@ def train_and_validate_NN_model(device, hidden_layer_sizes, activation_fun, lear
         print('\nEpoch : %d' % epoch)
         train(trainloader, device, model, loss_fn, train_accuracy_all_epochs, train_errors_all_epochs,
               train_losses_all_epochs, optimizer, l2_lambda)
+        print('On training set:')
         evaluate(trainloader, device, model, loss_fn, train_accuracy2_all_epochs, train_errors2_all_epochs)
+        print('On validation set:')
         evaluate(validationloader, device, model, loss_fn, eval_accu_all_epochs, eval_errors_all_epochs)
 
     return model, epochs_sequence, train_losses_all_epochs, train_errors2_all_epochs, train_accuracy2_all_epochs, \
