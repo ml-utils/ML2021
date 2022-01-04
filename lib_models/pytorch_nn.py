@@ -136,6 +136,8 @@ def train(trainloader, device, model, loss_fn, train_accuracy_all_epochs, train_
         # labels = labels.to(device, dtype=torch.float64)
 
         error_this_batch = loss_fn(outputs, labels)
+        running_error_this_epoch += error_this_batch.item()
+
         # Replaces pow(2.0) with abs() for L1 regularization
         l2_norm = get_L2_norm_for_regularization(model)
         loss_this_batch = error_this_batch + (l2_lambda * l2_norm)
@@ -144,8 +146,6 @@ def train(trainloader, device, model, loss_fn, train_accuracy_all_epochs, train_
         optimizer.zero_grad()  # clear previous gradients
         loss_this_batch.backward()  # backward pass
         optimizer.step()
-
-        running_error_this_epoch += error_this_batch.item()
         running_loss_this_epoch += loss_this_batch.item()
 
         # accuracy scores for classification tasks
@@ -164,7 +164,7 @@ def train(trainloader, device, model, loss_fn, train_accuracy_all_epochs, train_
     print('Epoch train Loss: %.3f | Train Error: %.3f | Accuracy: %.3f' % (final_train_loss_this_epoch, final_train_error_this_epoch, accu))
 
 
-def evaluate(testloader, device, model, loss_fn, eval_accu_all_epochs, eval_errors_all_epochs):
+def evaluate(dataloader, device, model, loss_fn, accuracy_all_epochs, errors_all_epochs):
 
     model.set_in_validation_mode()
 
@@ -173,14 +173,14 @@ def evaluate(testloader, device, model, loss_fn, eval_accu_all_epochs, eval_erro
     total = 0
 
     with torch.no_grad():
-        for batch_of_data in tqdm(testloader):
-            print('validation data batch: ', batch_of_data)
+        for batch_of_data in tqdm(dataloader):
+            # print('validation data batch, as nested lists, len/size: ',
+            #      len(batch_of_data[0][0]), 'x', len(batch_of_data[0]), ', 1 x', len(batch_of_data[1]))  # 5x64, 1x64
             inputs, labels = batch_of_data[0].to(device), batch_of_data[1].to(device)
 
             outputs = model(inputs)
 
             error_this_batch = loss_fn(outputs, labels)
-
             running_error_this_epoch += error_this_batch.item()
 
             # accuracy scores for classification tasks
@@ -188,13 +188,13 @@ def evaluate(testloader, device, model, loss_fn, eval_accu_all_epochs, eval_erro
             total += labels.size(0)
             correct += predicted.eq(labels).sum().item()
 
-    final_test_error_this_epoch = running_error_this_epoch / len(testloader)
+    final_test_error_this_epoch = running_error_this_epoch / len(dataloader)
     accu = 100. * correct / total # accuracy scores for classification tasks
 
-    eval_errors_all_epochs.append(final_test_error_this_epoch)
-    eval_accu_all_epochs.append(accu)
+    errors_all_epochs.append(final_test_error_this_epoch)
+    accuracy_all_epochs.append(accu)
 
-    print('Test Error: %.3f | Accuracy: %.3f' % (final_test_error_this_epoch, accu))
+    print('Epoch validation/test Error: %.3f | Accuracy: %.3f' % (final_test_error_this_epoch, accu))
 
 
 def get_dev_data_from_file(mini_batch_size, filename, rows_count=None, cols_count=None):
@@ -243,18 +243,21 @@ def train_and_validate_NN_model(device, hidden_layer_sizes, activation_fun, lear
     train_losses_all_epochs = []
     train_errors_all_epochs = []
     train_accuracy_all_epochs = []
+    train_accuracy2_all_epochs = []
+    train_errors2_all_epochs = []
     eval_errors_all_epochs = []
     eval_accu_all_epochs = []
 
-    epochs_count = 25
+    epochs_count = 10
     epochs_sequence = range(1, epochs_count + 1)
     for epoch in epochs_sequence:
         print('\nEpoch : %d' % epoch)
         train(trainloader, device, model, loss_fn, train_accuracy_all_epochs, train_errors_all_epochs,
               train_losses_all_epochs, optimizer, l2_lambda)
+        evaluate(trainloader, device, model, loss_fn, train_accuracy2_all_epochs, train_errors_all_epochs)
         evaluate(validationloader, device, model, loss_fn, eval_accu_all_epochs, eval_errors_all_epochs)
 
-    return model, epochs_sequence, train_losses_all_epochs, train_errors_all_epochs, train_accuracy_all_epochs, \
+    return model, epochs_sequence, train_losses_all_epochs, train_errors_all_epochs, train_accuracy2_all_epochs, \
            eval_errors_all_epochs, eval_accu_all_epochs
 
 
@@ -266,7 +269,7 @@ def plot_learning_curves(epochs_sequence, train_losses, train_errors, eval_error
     ax1.set_xlabel('epoch')
     ax1.set_ylabel('losses')
 
-    l2, = ax2.plot(epochs_sequence, train_errors, '-o', color='blue')
+    l2, = ax2.plot([x - 0.5 for x in epochs_sequence], train_errors, '-o', color='blue')
     l3, = ax2.plot(epochs_sequence, eval_errors, '-o', color='orange')
     ax2.set_title('train and validation error')
     ax2.set_xlabel('epoch')
