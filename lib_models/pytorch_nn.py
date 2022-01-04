@@ -230,18 +230,36 @@ def get_dev_data_from_library(mini_batch_size):
 
 
 def train_and_validate_NN_model(device, hidden_layer_sizes, activation_fun, learning_rate, momentum, l2_lambda,
-                             loss_fn, trainloader, validationloader):
+                                loss_fn, trainloader, validationloader, adaptive_learning_rate='constant'):
     # todo, passing functions as parameter, enable choice btw optimizers, normalization function, ..
 
     print('creating model and sending to cpu/gpu..')
     model = NeuralNetwork(hidden_layer_sizes, activation_fun).to(device)
     print(model)
-    optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=momentum)
+    if adaptive_learning_rate.lower() == 'constant':
+        optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=momentum)
+    elif adaptive_learning_rate.lower() == 'adam':
+        optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    elif adaptive_learning_rate.lower() == 'AdaGrad'.lower():
+        # other params:
+        # lr_decay=0 (learning rate decay),
+        # weight_decay=0 (L2 penalty),
+        # initial_accumulator_value=0,
+        # eps=1e-10 (added to the denominator to improve numerical stability)
+        optimizer = optim.Adagrad(model.parameters(), lr=learning_rate)
+    elif adaptive_learning_rate.lower() == 'RMSProp'.lower():
+        # other params:
+        # alpha=0.99 (smoothing constant),
+        # eps=1e-08 (added to the denominator to improve numerical stability),
+        # weight_decay=0 (L2 penalty)
+        optimizer = optim.RMSprop(model.parameters(), lr=learning_rate, momentum=momentum)
+    else:
+        optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=momentum)
 
     # model1
     print('running model 1:')
     train_losses_all_epochs = []
-    train_errors_all_epochs = []
+    train_errors_variable_by_batches = []
     train_accuracy_all_epochs = []
     train_accuracy2_all_epochs = []
     train_errors2_all_epochs = []
@@ -252,7 +270,7 @@ def train_and_validate_NN_model(device, hidden_layer_sizes, activation_fun, lear
     epochs_sequence = range(1, epochs_count + 1)
     for epoch in epochs_sequence:
         print('\nEpoch : %d' % epoch)
-        train(trainloader, device, model, loss_fn, train_accuracy_all_epochs, train_errors_all_epochs,
+        train(trainloader, device, model, loss_fn, train_accuracy_all_epochs, train_errors_variable_by_batches,
               train_losses_all_epochs, optimizer, l2_lambda)
         print('On training set:')
         evaluate(trainloader, device, model, loss_fn, train_accuracy2_all_epochs, train_errors2_all_epochs)
@@ -260,23 +278,31 @@ def train_and_validate_NN_model(device, hidden_layer_sizes, activation_fun, lear
         evaluate(validationloader, device, model, loss_fn, eval_accu_all_epochs, eval_errors_all_epochs)
 
     return model, epochs_sequence, train_losses_all_epochs, train_errors2_all_epochs, train_accuracy2_all_epochs, \
-           eval_errors_all_epochs, eval_accu_all_epochs
+           eval_errors_all_epochs, eval_accu_all_epochs, train_errors_variable_by_batches
 
 
-def plot_learning_curves(epochs_sequence, train_losses, train_errors, eval_errors):
+def plot_hyperparams_descr(ax, hyperparams_descr):
+    plt.text(0.01, 0.95, hyperparams_descr, horizontalalignment='left', verticalalignment='top', transform=ax.transAxes)
 
+
+def plot_learning_curves(epochs_sequence, train_losses, train_errors, eval_errors, train_errors_variable_by_batches,
+                         hyperparams_descr):
     f, (ax1, ax2) = plt.subplots(2, 1, sharey=False)
-    l1, = ax1.plot(epochs_sequence, train_losses, '-o', color='purple')
-    ax1.set_title('train_losses')
+    plot_hyperparams_descr(ax1, hyperparams_descr)
+
+    l1, = ax1.plot([x - 0.5 for x in epochs_sequence], train_losses, '-o', color='purple')
+    l4, = ax1.plot([x - 0.5 for x in epochs_sequence], train_errors_variable_by_batches, '-o', color='dodgerblue')
+    ax1.set_title('train_losses and errors (during training, weights/params change within epoch after each batch)')
     ax1.set_xlabel('epoch')
-    ax1.set_ylabel('losses')
+    ax1.set_ylabel('loss/error')
+    ax1.legend([l1, l4], ["train_losses (during epoch)", "train_errors (during epoch)"])
 
     l2, = ax2.plot(epochs_sequence, train_errors, '-o', color='blue')
     l3, = ax2.plot(epochs_sequence, eval_errors, '-o', color='orange')
-    ax2.set_title('train and validation error')
+    ax2.set_title('train and validation errors (at the end of each epoch)')
     ax2.set_xlabel('epoch')
-    ax2.set_ylabel('errors')
-    plt.legend([l1, l2, l3], ["train_losses", "train_errors", "eval_errors"])
+    ax2.set_ylabel('error')
+    ax2.legend([l2, l3], ["train_errors (end of epoch)", "eval_errors (end of epoch)"])
     plt.show()
 
     # plt.plot(train_losses, '-o')
@@ -302,7 +328,7 @@ def plot_accuracy(train_accu, eval_accu):
     plt.show()
 
 
-def plot_predicted_points(device, model, validationloader, dev_set, subtitle):
+def plot_predicted_points(device, model, validationloader, dev_set, subtitle, hyperparams_descr):
     # todo: plot lines for labels and one for predicted by model
     # inverse transform of the RobustScaler
     # sort the labels (x axis is for the index 1-n), plot values as y
@@ -334,6 +360,7 @@ def plot_predicted_points(device, model, validationloader, dev_set, subtitle):
     actual_labels, predicted_labels = (list(t) for t in zip(*sorted(zip(actual_labels, predicted_labels))))
 
     f, (ax2) = plt.subplots(1, 1, sharey=False)
+    plot_hyperparams_descr(ax2, hyperparams_descr)
     l2 = ax2.scatter(range(len(actual_labels)), actual_labels, color='blue')  #  l2, = ax2.plot(actual_labels, '-o', color='blue')
     l3 = ax2.scatter(range(len(predicted_labels)), predicted_labels, color='orange')  # '-o',
     ax2.set_title('actual and predicted labels' + subtitle)
@@ -352,8 +379,19 @@ def main():
     mini_batch_size = 64
     learning_rate = 0.012
     momentum = 0.9
-    l2_lambda = 0.0014  # 0.003  # 0.005  # 0.01  # 0.001
+    adaptive_learning_rate = 'constant'
     loss_fn = nn.MSELoss()  # nn.CrossEntropyLoss()  # BCELoss
+    l2_lambda = 0.0014  # 0.003  # 0.005  # 0.01  # 0.001
+
+    hyperparams_descr = ("Layers, nodes: " + str(hidden_layer_sizes_airflow)
+                         + "\n" + "Activation_fun: " + str(activation_fun)[0:5]
+                         + "\n" + "Mini_batch_size: " + str(mini_batch_size)
+                         + "\n" + "Learning_rate: " + str(learning_rate)
+                         + "\n" + "Momentum: " + str(momentum)
+                         + "\n" + "Adaptive_learning_rate: " + adaptive_learning_rate
+                         + "\n" + "Error fn: " + str(nn.MSELoss())
+                         + "\n" + "L2 lambda: " + str(l2_lambda)
+                         )
 
     print('setting cpus/gpus..')
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -371,14 +409,17 @@ def main():
         = get_dev_data_from_file(mini_batch_size, file_abs_path, 1502, 5)
 
     print('train_and_validate_NN_model..')
-    model, epochs_sequence, train_losses, train_errors, train_accu, eval_errors, eval_accu \
+    model, epochs_sequence, train_losses, train_errors, train_accu, eval_errors, eval_accu, \
+    train_errors_variable_by_batches \
         = train_and_validate_NN_model(device, hidden_layer_sizes_airflow, activation_fun,
                                 learning_rate, momentum, l2_lambda,
-                                loss_fn, train_set_loader, validation_set_loader)
+                                loss_fn, train_set_loader, validation_set_loader,
+                                      adaptive_learning_rate=adaptive_learning_rate)
 
-    plot_learning_curves(epochs_sequence, train_losses, train_errors, eval_errors)
-    plot_predicted_points(device, model, train_set_loader, dev_set, ' (training set)')
-    plot_predicted_points(device, model, validation_set_loader, dev_set, ' (validation set)')
+    plot_learning_curves(epochs_sequence, train_losses, train_errors, eval_errors, train_errors_variable_by_batches,
+                         hyperparams_descr)
+    plot_predicted_points(device, model, train_set_loader, dev_set, ' (training set)', hyperparams_descr)
+    plot_predicted_points(device, model, validation_set_loader, dev_set, ' (validation set)', hyperparams_descr)
 
 
 if __name__ == '__main__':
