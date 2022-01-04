@@ -52,6 +52,9 @@ class NeuralNetwork(nn.Module):
     def set_in_training_mode(self):
         super(NeuralNetwork, self).train()
 
+    def set_in_validation_mode(self):
+        super(NeuralNetwork, self).eval()
+
 
 class FeaturesDataset(Dataset):
     def __init__(self, filename, rows_count=None, cols_count=None):
@@ -108,18 +111,17 @@ def get_L2_norm_for_regularization(model):
         for p in model.parameters())
 
 
-def train(epoch, trainloader, device, model, loss_fn, optimizer, l2_lambda, train_accu, train_losses, train_errors):
-    print('\nEpoch : %d' % epoch)
+def train(trainloader, device, model, loss_fn, optimizer, l2_lambda, train_accuracy_all_epochs, train_losses_all_epochs, train_errors_all_epochs):
 
     model.set_in_training_mode()
 
-    running_loss = 0
-    running_error = 0
+    running_error_this_epoch = 0
+    running_loss_this_epoch = 0
     correct = 0
     total = 0
 
-    for data in tqdm(trainloader):
-        inputs, labels = data[0].to(device), data[1].to(device)
+    for batch_of_data in tqdm(trainloader):
+        inputs, labels = batch_of_data[0].to(device), batch_of_data[1].to(device)
 
         outputs = model(inputs)
         # print('outputs this batch: ')
@@ -132,37 +134,40 @@ def train(epoch, trainloader, device, model, loss_fn, optimizer, l2_lambda, trai
         # outputs = outputs.to(device, dtype=torch.float64)
         # labels = labels.to(device, dtype=torch.float64)
 
-        error = loss_fn(outputs, labels)
+        error_this_batch = loss_fn(outputs, labels)
         # Replaces pow(2.0) with abs() for L1 regularization
         l2_norm = get_L2_norm_for_regularization(model)
-        loss = error + (l2_lambda * l2_norm)
+        loss_this_batch = error_this_batch + (l2_lambda * l2_norm)
 
         # todo: check how it's done (backprop, weights update, gradient descent, derivative of loss)
         optimizer.zero_grad()  # clear previous gradients
-        loss.backward()  # backward pass
+        loss_this_batch.backward()  # backward pass
         optimizer.step()
 
-        running_loss += loss.item()
-        running_error += error.item()
+        running_error_this_epoch += error_this_batch.item()
+        running_loss_this_epoch += loss_this_batch.item()
 
+        # accuracy scores for classification tasks
         _, predicted = outputs.max(1)
         total += labels.size(0)
         correct += predicted.eq(labels).sum().item()
 
-    train_loss = running_loss / len(trainloader)
-    train_error = running_error / len(trainloader)
-    # If you would like to calculate the loss for each epoch,
-    # divide the running_loss by the number of batches and append it to train_losses in each epoch.
+    final_train_error_this_epoch = running_error_this_epoch / len(trainloader)
+    final_train_loss_this_epoch = running_loss_this_epoch / len(trainloader)
+
+    # accuracy scores for classification tasks
     accu = 100. * correct / total
 
-    train_accu.append(accu)
-    train_losses.append(train_loss)
-    train_errors.append(train_error)
-    print('Train Loss: %.3f | Train Error: %.3f | Accuracy: %.3f' % (train_loss, train_error, accu))
+
+    train_errors_all_epochs.append(final_train_error_this_epoch)
+    train_losses_all_epochs.append(final_train_loss_this_epoch)
+    train_accuracy_all_epochs.append(accu)
+    print('Epoch train Loss: %.3f | Train Error: %.3f | Accuracy: %.3f' % (final_train_loss_this_epoch, final_train_error_this_epoch, accu))
 
 
-def evaluate(epoch, testloader, device, model, loss_fn, eval_errors, eval_accu):
-    model.eval()
+def evaluate(testloader, device, model, loss_fn, eval_errors, eval_accu):
+
+    model.set_in_validation_mode()
 
     running_error = 0
     correct = 0
@@ -243,8 +248,9 @@ def train_and_validate_NN_model(device, hidden_layer_sizes, activation_fun, lear
     epochs_count = 25
     epochs_sequence = range(1, epochs_count + 1)
     for epoch in epochs_sequence:
-        train(epoch, trainloader, device, model, loss_fn, optimizer, l2_lambda, train_accu, train_losses, train_errors)
-        evaluate(epoch, validationloader, device, model, loss_fn, eval_errors, eval_accu)
+        print('\nEpoch : %d' % epoch)
+        train(trainloader, device, model, loss_fn, optimizer, l2_lambda, train_accu, train_losses, train_errors)
+        evaluate(validationloader, device, model, loss_fn, eval_errors, eval_accu)
 
     return model, epochs_sequence, train_losses, train_errors, train_accu, eval_errors, eval_accu
 
