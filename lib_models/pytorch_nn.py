@@ -254,10 +254,10 @@ def train_and_validate_NN_model(device, hidden_layer_sizes, activation_fun, lear
         print('\nEpoch : %d' % epoch)
         train(trainloader, device, model, loss_fn, train_accuracy_all_epochs, train_errors_all_epochs,
               train_losses_all_epochs, optimizer, l2_lambda)
-        evaluate(trainloader, device, model, loss_fn, train_accuracy2_all_epochs, train_errors_all_epochs)
+        evaluate(trainloader, device, model, loss_fn, train_accuracy2_all_epochs, train_errors2_all_epochs)
         evaluate(validationloader, device, model, loss_fn, eval_accu_all_epochs, eval_errors_all_epochs)
 
-    return model, epochs_sequence, train_losses_all_epochs, train_errors_all_epochs, train_accuracy2_all_epochs, \
+    return model, epochs_sequence, train_losses_all_epochs, train_errors2_all_epochs, train_accuracy2_all_epochs, \
            eval_errors_all_epochs, eval_accu_all_epochs
 
 
@@ -269,7 +269,7 @@ def plot_learning_curves(epochs_sequence, train_losses, train_errors, eval_error
     ax1.set_xlabel('epoch')
     ax1.set_ylabel('losses')
 
-    l2, = ax2.plot([x - 0.5 for x in epochs_sequence], train_errors, '-o', color='blue')
+    l2, = ax2.plot(epochs_sequence, train_errors, '-o', color='blue')
     l3, = ax2.plot(epochs_sequence, eval_errors, '-o', color='orange')
     ax2.set_title('train and validation error')
     ax2.set_xlabel('epoch')
