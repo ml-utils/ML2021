@@ -58,7 +58,8 @@ class NeuralNetwork(nn.Module):
 
 
 class FeaturesDataset(Dataset):
-    def __init__(self, filename, dtype1, sep=',', dtype2=None, header='infer', col_names=None):  # , rows_count=None, cols_count=None
+    def __init__(self, filename, dtype1, sep=',', dtype2=None, header='infer', col_names=None,
+                 scaler=None):  # , rows_count=None, cols_count=None
         file_out = pd.read_csv(filename, sep=sep, header=header, names=col_names, dtype=dtype1)
         # print(file_out.to_string())
         print(file_out.info())
@@ -80,22 +81,41 @@ class FeaturesDataset(Dataset):
         print(x[:5])
         y = file_out.iloc[0:rows_count, cols_count].values
         print('y type: ', type(y), 'y shape: ', y.shape, ' head:')
-        print(y[:5])
+        print(y[:50])
 
         # todo: linear base expansion
         # add x^2 ..for each input
 
-        #Feature scaling
-        self.features_scaler = RobustScaler()  # MaxAbsScaler()  # MinMaxScaler()  # Normalizer()  # StandardScaler()  #
-        x_train = self.features_scaler.fit_transform(x)
-        self.labels_scaler = RobustScaler()  # MaxAbsScaler()  # MinMaxScaler()  # Normalizer()  # StandardScaler()  #
-        y_reshaped = y.reshape(-1, 1)
-        print('y shape:', y.shape, ', y_reshaped type: ', type(y_reshaped), ', shape: ', y_reshaped.shape)  # numpy.ndarray
+        y_reshaped = y.reshape(-1, 1)  # todo: adapt also for when output is more than one feature/dimension
+        print('y shape:', y.shape, ', y_reshaped type: ', type(y_reshaped), ', shape: ',
+              y_reshaped.shape)  # numpy.ndarray
         print('y_reshaped head:')
         print(y_reshaped[:5])
-        y_train = self.labels_scaler.fit_transform(y_reshaped)  # = y
 
-        #converting to torch tensors
+        #Feature scaling
+        if scaler is not None:
+            # todo: option to have no feature scaling
+            #  pass the scaler with the config hyperparams
+            # todo: also pass the torch dtype (es torch.float32) to be used for x, y after feature scaling
+            # check type before and after scaling
+            # before scaling: x, y are numpy ..(nd array?)
+            # after scaling: x_train is ..ndarray
+
+            self.features_scaler = scaler()  
+            x_train = self.features_scaler.fit_transform(x)
+            self.labels_scaler = scaler()
+            y_train = self.labels_scaler.fit_transform(y_reshaped)  # = y
+            print('x head after rescaling:')
+            print(x_train[:5])
+            print('y head after rescaling:')
+            print(y_train[:5])
+        else:
+            self.features_scaler = None
+            self.labels_scaler = None
+            x_train = x
+            y_train = y_reshaped
+            
+        # converting to torch tensors
         self.X_train = torch.tensor(x_train, dtype=torch.float32)
         self.y_train = torch.tensor(y_train)
 
@@ -197,12 +217,13 @@ def evaluate(dataloader, device, model, loss_fn, accuracy_all_epochs, errors_all
     print('Error at the end of epoch: %.3f | Accuracy: %.3f' % (final_test_error_this_epoch, accu))
 
 
-def get_dev_data_from_file(mini_batch_size, filename, dtype1, sep, dtype2=None, header='infer', col_names=None):  # , rows_count=None, cols_count=None
+def get_dev_data_from_file(mini_batch_size, filename, dtype1, sep, dtype2=None, header='infer', col_names=None, 
+                           scaler=None):  # , rows_count=None, cols_count=None
     from torch.utils.data import DataLoader
     print('getting data from ', filename, '..')
     # transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
-    dev_set = FeaturesDataset(filename, dtype1, sep, dtype2, header, col_names)
+    dev_set = FeaturesDataset(filename, dtype1, sep, dtype2, header, col_names, scaler)
     train_fraction = 0.8
     train_count = int(len(dev_set) * train_fraction)
     split_ratios = [train_count, len(dev_set) - train_count]
@@ -266,7 +287,7 @@ def train_and_validate_NN_model(device, hidden_layer_sizes, activation_fun, lear
     eval_errors_all_epochs = []
     eval_accu_all_epochs = []
 
-    epochs_count = 10
+    epochs_count = 1
     epochs_sequence = range(1, epochs_count + 1)
     for epoch in epochs_sequence:
         print('\nEpoch : %d' % epoch)
@@ -353,8 +374,12 @@ def plot_predicted_points(device, model, validationloader, dev_set, subtitle, hy
                 actual_labels_normalized = torch.cat((actual_labels_normalized, labels))
                 predicted_labels_normalized = torch.cat((predicted_labels_normalized, outputs))
 
-    actual_labels = dev_set.labels_scaler.inverse_transform(actual_labels_normalized.cpu().numpy()).tolist()
-    predicted_labels = dev_set.labels_scaler.inverse_transform(predicted_labels_normalized.cpu().numpy()).tolist()
+    if dev_set.labels_scaler is not None:
+        actual_labels = dev_set.labels_scaler.inverse_transform(actual_labels_normalized.cpu().numpy()).tolist()
+        predicted_labels = dev_set.labels_scaler.inverse_transform(predicted_labels_normalized.cpu().numpy()).tolist()
+    else:
+        actual_labels = actual_labels_normalized.tolist()
+        predicted_labels = predicted_labels_normalized.tolist()
 
     #sort
     actual_labels, predicted_labels = (list(t) for t in zip(*sorted(zip(actual_labels, predicted_labels))))
@@ -370,12 +395,39 @@ def plot_predicted_points(device, model, validationloader, dev_set, subtitle, hy
     plt.show()
 
 
+def get_config_for_dataset(dtype1, dtype2, col_names, header, features_scaler, hidden_layer_sizes,
+                           activation_fun, mini_batch_size, learning_rate, momentum, adaptive_learning_rate,
+                           loss_fn, l2_lambda, model_descr, filename, assets_subdir, sep):
+
+    root_dir = os.getcwd()
+    print('root dir:', root_dir)
+    file_abs_path = os.path.join(root_dir, '../datasplitting/assets/', assets_subdir, filename)
+
+    hyperparams_descr = ("Dataset: " + filename
+                         + "\n" + "Scaler: " + str(features_scaler)
+                         + "\n" + "Model: " + model_descr
+                         + "\n" + "Layers, nodes: " + str(hidden_layer_sizes)
+                         + "\n" + "Activation_fun: " + str(activation_fun)[0:5]
+                         + "\n" + "Mini_batch_size: " + str(mini_batch_size)
+                         + "\n" + "Learning_rate: " + str(learning_rate)
+                         + "\n" + "Momentum: " + str(momentum)
+                         + "\n" + "Adaptive_learning_rate: " + adaptive_learning_rate
+                         + "\n" + "Error fn: " + str(loss_fn)
+                         + "\n" + "L2 lambda: " + str(l2_lambda)
+                         )
+
+    return hidden_layer_sizes, activation_fun, mini_batch_size, learning_rate, momentum, \
+           adaptive_learning_rate, loss_fn, l2_lambda, hyperparams_descr, file_abs_path, \
+           sep, dtype1, dtype2, header, col_names, features_scaler
+
+
 def get_config_for_airfoil_dataset():
     dtype1 = {'A': np.float32, 'B': np.float32, 'C': np.float32, 'D': np.float32, 'E': np.float32, 'F': np.float32}
     dtype2 = {'A': np.int32, 'B': np.int32}
     col_names = ["A", "B", "C", "D", "E", "F"]
     header = None
-
+    features_scaler = RobustScaler
+    
     # hidden_layer_sizes = (3*32*32, 512, 512, 10)
     hidden_layer_sizes_airflow = (5, 120, 1)  # (5, 10, 10, 10, 1)
     activation_fun = nn.RReLU()  # other options: nn.ReLU(), nn.Tanh, ..
@@ -387,27 +439,12 @@ def get_config_for_airfoil_dataset():
     l2_lambda = 0.0014  # 0.003  # 0.005  # 0.01  # 0.001
     model_descr = 'NN MLP regressor (fully connected)'
 
+    assets_subdir = 'airfoil'
     filename = 'airfoil_self_noise.dat.csv'
-    root_dir = os.getcwd()
-    print('root dir:', root_dir)
-    file_abs_path = os.path.join(root_dir, '../datasplitting/assets/airfoil/' + filename)
-    sep = ';'
-
-    hyperparams_descr = ("Dataset: " + filename
-                         + "\n" + "Model: " + model_descr
-                         + "\n" + "Layers, nodes: " + str(hidden_layer_sizes_airflow)
-                         + "\n" + "Activation_fun: " + str(activation_fun)[0:5]
-                         + "\n" + "Mini_batch_size: " + str(mini_batch_size)
-                         + "\n" + "Learning_rate: " + str(learning_rate)
-                         + "\n" + "Momentum: " + str(momentum)
-                         + "\n" + "Adaptive_learning_rate: " + adaptive_learning_rate
-                         + "\n" + "Error fn: " + str(nn.MSELoss())
-                         + "\n" + "L2 lambda: " + str(l2_lambda)
-                         )
-
-    return hidden_layer_sizes_airflow, activation_fun, mini_batch_size, learning_rate, momentum, \
-           adaptive_learning_rate, loss_fn, l2_lambda, model_descr, hyperparams_descr, file_abs_path, \
-           sep, dtype1, dtype2, header, col_names
+    sep = '\t'
+    return get_config_for_dataset(dtype1, dtype2, col_names, header, features_scaler, hidden_layer_sizes_airflow,
+                           activation_fun, mini_batch_size, learning_rate, momentum, adaptive_learning_rate,
+                           loss_fn, l2_lambda, model_descr, filename, assets_subdir, sep)
 
 
 def get_config_for_winequality_dataset():
@@ -418,9 +455,10 @@ def get_config_for_winequality_dataset():
     dtype2 = None
     col_names = None
     header = 0
-
+    features_scaler = RobustScaler  # MaxAbsScaler  # MinMaxScaler  # Normalizer  # StandardScaler  #
+    
     # hidden_layer_sizes = (3*32*32, 512, 512, 10)
-    hidden_layer_sizes_airflow = (11, 120, 1)  # (5, 10, 10, 10, 1)
+    hidden_layer_sizes = (11, 120, 1)  # (5, 10, 10, 10, 1)
     activation_fun = nn.RReLU()  # other options: nn.ReLU(), nn.Tanh, ..
     mini_batch_size = 64
     learning_rate = 0.012
@@ -430,27 +468,12 @@ def get_config_for_winequality_dataset():
     l2_lambda = 0.0014  # 0.003  # 0.005  # 0.01  # 0.001
     model_descr = 'NN MLP regressor (fully connected)'
 
+    assets_subdir = 'wine-quality'
     filename = 'winequality-white.csv'
-    root_dir = os.getcwd()
-    print('root dir:', root_dir)
-    file_abs_path = os.path.join(root_dir, '../datasplitting/assets/wine-quality/' + filename)
     sep = ';'
-
-    hyperparams_descr = ("Dataset: " + filename
-                         + "\n" + "Model: " + model_descr
-                         + "\n" + "Layers, nodes: " + str(hidden_layer_sizes_airflow)
-                         + "\n" + "Activation_fun: " + str(activation_fun)[0:5]
-                         + "\n" + "Mini_batch_size: " + str(mini_batch_size)
-                         + "\n" + "Learning_rate: " + str(learning_rate)
-                         + "\n" + "Momentum: " + str(momentum)
-                         + "\n" + "Adaptive_learning_rate: " + adaptive_learning_rate
-                         + "\n" + "Error fn: " + str(nn.MSELoss())
-                         + "\n" + "L2 lambda: " + str(l2_lambda)
-                         )
-
-    return hidden_layer_sizes_airflow, activation_fun, mini_batch_size, learning_rate, momentum, \
-           adaptive_learning_rate, loss_fn, l2_lambda, model_descr, hyperparams_descr, file_abs_path, \
-           sep, dtype1, dtype2, header, col_names
+    return get_config_for_dataset(dtype1, dtype2, col_names, header, features_scaler, hidden_layer_sizes,
+                           activation_fun, mini_batch_size, learning_rate, momentum, adaptive_learning_rate,
+                           loss_fn, l2_lambda, model_descr, filename, assets_subdir, sep)
 
 
 def main():
@@ -461,21 +484,21 @@ def main():
     print(f'Using {device} device')
 
     print('getting data..')
-    hidden_layer_sizes_airflow, activation_fun, mini_batch_size, learning_rate, momentum, \
-    adaptive_learning_rate, loss_fn, l2_lambda, model_descr, hyperparams_descr, file_abs_path, \
-    sep, dtype1, dtype2, header, col_names = get_config_for_winequality_dataset()
+    hidden_layer_sizes, activation_fun, mini_batch_size, learning_rate, momentum, \
+    adaptive_learning_rate, loss_fn, l2_lambda, hyperparams_descr, file_abs_path, \
+    sep, dtype1, dtype2, header, col_names, features_scaler = get_config_for_winequality_dataset()
 
     print('file abs path:', file_abs_path)
 
     # todo: preprocessing, visualize data: boxplots, ..gaussians for each feature and output dim
 
     train_set_loader, validation_set_loader, train_set, validation_set, dev_set \
-        = get_dev_data_from_file(mini_batch_size, file_abs_path, dtype1, sep, dtype2, header, col_names)
+        = get_dev_data_from_file(mini_batch_size, file_abs_path, dtype1, sep, dtype2, header, col_names, features_scaler)
 
     print('train_and_validate_NN_model..')
     model, epochs_sequence, train_losses, train_errors, train_accu, eval_errors, eval_accu, \
     train_errors_variable_by_batches \
-        = train_and_validate_NN_model(device, hidden_layer_sizes_airflow, activation_fun,
+        = train_and_validate_NN_model(device, hidden_layer_sizes, activation_fun,
                                 learning_rate, momentum, l2_lambda,
                                 loss_fn, train_set_loader, validation_set_loader,
                                       adaptive_learning_rate=adaptive_learning_rate)
