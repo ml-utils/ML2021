@@ -26,11 +26,11 @@ class NeuralNetwork(nn.Module):
         super(NeuralNetwork, self).__init__()
         self.flatten = nn.Flatten()  # what does this do?
 
-        hidden_layer_sizes_as_list = NeuralNetwork.__get_layers(hidden_layer_sizes, activation_fun)
-        self.linear_relu_stack = nn.Sequential(OrderedDict(hidden_layer_sizes_as_list))
+        hidden_layer_sizes_as_list = NeuralNetwork.__get_layers_descr_as_list(hidden_layer_sizes, activation_fun)
+        self.linear_relu_stack = nn.Sequential(OrderedDict(hidden_layer_sizes_as_list))  # this actually creates the NN
 
     @staticmethod
-    def __get_layers(hidden_layer_sizes, activation_fun):
+    def __get_layers_descr_as_list(hidden_layer_sizes, activation_fun):
         layers = []
         last_layer_idx = len(hidden_layer_sizes) - 2
         print('last_layer_idx: ', last_layer_idx)
@@ -40,11 +40,12 @@ class NeuralNetwork(nn.Module):
                                                                       hidden_layer_sizes[layer_idx + 1]))
             layers.append(linear_layer)
             is_last_layer = layer_idx >= last_layer_idx
-            if not is_last_layer:
+            if not is_last_layer:  # NB.: not adding an activation function after the last layer
                 layers.append((str(activation_fun)[0:5] + str(layer_idx), activation_fun))
         return layers
 
     def forward(self, x):
+        # todo: clarify how does this work/is implemented
         x = self.flatten(x)
         logits = self.linear_relu_stack(x)
         return logits
@@ -375,15 +376,17 @@ def main():
 
     # hidden_layer_sizes = (3*32*32, 512, 512, 10)
     hidden_layer_sizes_airflow = (5, 120, 1)  # (5, 10, 10, 10, 1)
-    activation_fun = nn.RReLU()  # nn.ReLU() nn.Tanh
+    activation_fun = nn.RReLU()  # other options: nn.ReLU(), nn.Tanh, ..
     mini_batch_size = 64
     learning_rate = 0.012
     momentum = 0.9
     adaptive_learning_rate = 'constant'
     loss_fn = nn.MSELoss()  # nn.CrossEntropyLoss()  # BCELoss
     l2_lambda = 0.0014  # 0.003  # 0.005  # 0.01  # 0.001
+    model_descr = 'NN MLP regressor (fully connected)'
 
-    hyperparams_descr = ("Layers, nodes: " + str(hidden_layer_sizes_airflow)
+    hyperparams_descr = ("Model: " + model_descr
+                         + "\n" + "Layers, nodes: " + str(hidden_layer_sizes_airflow)
                          + "\n" + "Activation_fun: " + str(activation_fun)[0:5]
                          + "\n" + "Mini_batch_size: " + str(mini_batch_size)
                          + "\n" + "Learning_rate: " + str(learning_rate)
