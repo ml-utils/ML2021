@@ -1,7 +1,9 @@
 import os
-
 import tensorflow as tf
-from tensorflow.keras import layers
+#from tensorflow.keras import layers
+#from tensorflow.keras.models import Sequential
+#from tensorflow.keras.layers import Dense, Dropout, Activation, Flatten, Conv2D, MaxPooling2D
+
 import pandas as pd
 import numpy as np
 
@@ -28,7 +30,7 @@ def main():
 
     # x_train, x_test = x_train / 255.0, x_test / 255.0  # Convert the sample data from integers to floating-point numbers:
 
-    normalize = layers.Normalization()  # normalization layer
+    normalize = tf.keras.layers.experimental.preprocessing.Normalization() # tf.keras.layers.Normalization()  #  # normalization layer
     normalize.adapt(wine_features)
 
     model = tf.keras.models.Sequential([
