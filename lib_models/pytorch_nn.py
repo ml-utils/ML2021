@@ -1,5 +1,7 @@
 import os
 from collections import OrderedDict
+from datetime import datetime
+
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
 from torchvision import datasets, transforms
@@ -24,7 +26,7 @@ class NeuralNetwork(nn.Module):
     """
     def __init__(self, hidden_layer_sizes, activation_fun):
         super(NeuralNetwork, self).__init__()
-        self.flatten = nn.Flatten()  # what does this do?
+        # self.flatten = nn.Flatten()  # what does this do?
 
         hidden_layer_sizes_as_list = NeuralNetwork.__get_layers_descr_as_list(hidden_layer_sizes, activation_fun)
         self.linear_relu_stack = nn.Sequential(OrderedDict(hidden_layer_sizes_as_list))  # this actually creates the NN
@@ -46,7 +48,7 @@ class NeuralNetwork(nn.Module):
 
     def forward(self, x):
         # todo: clarify how does this work/is implemented
-        x = self.flatten(x)
+        # x = self.flatten(x)
         logits = self.linear_relu_stack(x)
         return logits
 
@@ -287,8 +289,13 @@ def train_and_validate_NN_model(device, hidden_layer_sizes, activation_fun, lear
     eval_errors_all_epochs = []
     eval_accu_all_epochs = []
 
-    epochs_count = 1
+    # todo: add ability to save model to an epoch and then resume training later
+    # todo: add ability for "live" learning curve graph (updated during training, at each epoch)
+
+    epochs_count = 10
     epochs_sequence = range(1, epochs_count + 1)
+    print('starting training and validation epochs..')
+    epochs_startime = datetime.now()
     for epoch in epochs_sequence:
         print('\nEpoch : %d' % epoch)
         train(trainloader, device, model, loss_fn, train_accuracy_all_epochs, train_errors_variable_by_batches,
@@ -297,7 +304,9 @@ def train_and_validate_NN_model(device, hidden_layer_sizes, activation_fun, lear
         evaluate(trainloader, device, model, loss_fn, train_accuracy2_all_epochs, train_errors2_all_epochs)
         print('On validation set:')
         evaluate(validationloader, device, model, loss_fn, eval_accu_all_epochs, eval_errors_all_epochs)
-
+    epochs_completetime = datetime.now()  # fromtimestamp(os.path.getmtime("x.cache"))
+    epochs_total_duration = epochs_completetime - epochs_startime
+    print('Completed training and validation epochs in ', epochs_total_duration.total_seconds(), ' seconds.')
     return model, epochs_sequence, train_losses_all_epochs, train_errors2_all_epochs, train_accuracy2_all_epochs, \
            eval_errors_all_epochs, eval_accu_all_epochs, train_errors_variable_by_batches
 
@@ -461,8 +470,8 @@ def get_config_for_winequality_dataset():
     hidden_layer_sizes = (11, 120, 1)  # (5, 10, 10, 10, 1)
     activation_fun = nn.RReLU()  # other options: nn.ReLU(), nn.Tanh, ..
     mini_batch_size = 64
-    learning_rate = 0.012
-    momentum = 0.9
+    learning_rate = 0.0012
+    momentum = 0.1
     adaptive_learning_rate = 'constant'
     loss_fn = nn.MSELoss()  # nn.CrossEntropyLoss()  # BCELoss
     l2_lambda = 0.0014  # 0.003  # 0.005  # 0.01  # 0.001
