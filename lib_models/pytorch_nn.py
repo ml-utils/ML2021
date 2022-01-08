@@ -1,4 +1,4 @@
-import os
+
 from collections import OrderedDict
 from datetime import datetime
 
@@ -13,7 +13,9 @@ import torchvision
 import torch.optim as optim
 from tqdm import tqdm
 import pandas as pd
-from sklearn.preprocessing import RobustScaler, StandardScaler, Normalizer, MinMaxScaler, MaxAbsScaler
+
+from utils import plot_hyperparams_descr
+from dataset_configs import get_config_for_winequality_dataset_pytorch, get_config_for_airfoil_dataset_pytorch
 
 
 class NeuralNetwork(nn.Module):
@@ -311,10 +313,6 @@ def train_and_validate_NN_model(device, hidden_layer_sizes, activation_fun, lear
            eval_errors_all_epochs, eval_accu_all_epochs, train_errors_variable_by_batches
 
 
-def plot_hyperparams_descr(ax, hyperparams_descr):
-    plt.text(0.01, 0.95, hyperparams_descr, horizontalalignment='left', verticalalignment='top', transform=ax.transAxes)
-
-
 def plot_learning_curves(epochs_sequence, train_losses, train_errors, eval_errors, train_errors_variable_by_batches,
                          hyperparams_descr):
     f, (ax1, ax2) = plt.subplots(2, 1, sharey=False)
@@ -402,87 +400,6 @@ def plot_predicted_points(device, model, validationloader, dev_set, subtitle, hy
     ax2.set_ylabel('sample label value')
     plt.legend([l2, l3], ["actual_labels", "predicted_labels"])
     plt.show()
-
-
-def get_config_for_dataset(dtype1, dtype2, col_names, header, features_scaler, hidden_layer_sizes,
-                           activation_fun, mini_batch_size, learning_rate, momentum, adaptive_learning_rate,
-                           loss_fn, l2_lambda, model_descr, filename, assets_subdir, sep):
-
-    root_dir = os.getcwd()
-    print('root dir:', root_dir)
-    file_abs_path = os.path.join(root_dir, '../datasplitting/assets/', assets_subdir, filename)
-
-    hyperparams_descr = ("Dataset: " + filename
-                         + "\n" + "Scaler: " + str(features_scaler)
-                         + "\n" + "Model: " + model_descr
-                         + "\n" + "Layers, nodes: " + str(hidden_layer_sizes)
-                         + "\n" + "Activation_fun: " + str(activation_fun)[0:5]
-                         + "\n" + "Mini_batch_size: " + str(mini_batch_size)
-                         + "\n" + "Learning_rate: " + str(learning_rate)
-                         + "\n" + "Momentum: " + str(momentum)
-                         + "\n" + "Adaptive_learning_rate: " + adaptive_learning_rate
-                         + "\n" + "Error fn: " + str(loss_fn)
-                         + "\n" + "L2 lambda: " + str(l2_lambda)
-                         )
-
-    return hidden_layer_sizes, activation_fun, mini_batch_size, learning_rate, momentum, \
-           adaptive_learning_rate, loss_fn, l2_lambda, hyperparams_descr, file_abs_path, \
-           sep, dtype1, dtype2, header, col_names, features_scaler
-
-
-def get_config_for_airfoil_dataset():
-    dtype1 = {'A': np.float32, 'B': np.float32, 'C': np.float32, 'D': np.float32, 'E': np.float32, 'F': np.float32}
-    dtype2 = {'A': np.int32, 'B': np.int32}
-    col_names = ["A", "B", "C", "D", "E", "F"]
-    header = None
-    features_scaler = RobustScaler
-    
-    # hidden_layer_sizes = (3*32*32, 512, 512, 10)
-    hidden_layer_sizes_airflow = (5, 120, 1)  # (5, 10, 10, 10, 1)
-    activation_fun = nn.RReLU()  # other options: nn.ReLU(), nn.Tanh, ..
-    mini_batch_size = 64
-    learning_rate = 0.012
-    momentum = 0.9
-    adaptive_learning_rate = 'constant'
-    loss_fn = nn.MSELoss()  # nn.CrossEntropyLoss()  # BCELoss
-    l2_lambda = 0.0014  # 0.003  # 0.005  # 0.01  # 0.001
-    model_descr = 'NN MLP regressor (fully connected)'
-
-    assets_subdir = 'airfoil'
-    filename = 'airfoil_self_noise.dat.csv'
-    sep = '\t'
-    return get_config_for_dataset(dtype1, dtype2, col_names, header, features_scaler, hidden_layer_sizes_airflow,
-                           activation_fun, mini_batch_size, learning_rate, momentum, adaptive_learning_rate,
-                           loss_fn, l2_lambda, model_descr, filename, assets_subdir, sep)
-
-
-def get_config_for_winequality_dataset():
-
-    # todo: support more than one target column
-    # todo: include here the parameter for test/validation split ratio
-    dtype1 = np.float32
-    dtype2 = None
-    col_names = None
-    header = 0
-    features_scaler = RobustScaler  # MaxAbsScaler  # MinMaxScaler  # Normalizer  # StandardScaler  #
-    
-    # hidden_layer_sizes = (3*32*32, 512, 512, 10)
-    hidden_layer_sizes = (11, 120, 1)  # (5, 10, 10, 10, 1)
-    activation_fun = nn.RReLU()  # other options: nn.ReLU(), nn.Tanh, ..
-    mini_batch_size = 64
-    learning_rate = 0.0012
-    momentum = 0.1
-    adaptive_learning_rate = 'constant'
-    loss_fn = nn.MSELoss()  # nn.CrossEntropyLoss()  # BCELoss
-    l2_lambda = 0.0014  # 0.003  # 0.005  # 0.01  # 0.001
-    model_descr = 'NN MLP regressor (fully connected)'
-
-    assets_subdir = 'wine-quality'
-    filename = 'winequality-white.csv'
-    sep = ';'
-    return get_config_for_dataset(dtype1, dtype2, col_names, header, features_scaler, hidden_layer_sizes,
-                           activation_fun, mini_batch_size, learning_rate, momentum, adaptive_learning_rate,
-                           loss_fn, l2_lambda, model_descr, filename, assets_subdir, sep)
 
 
 def main():
