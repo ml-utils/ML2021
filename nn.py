@@ -1,5 +1,6 @@
 import numpy as np
 from time import sleep
+import matplotlib.pyplot as plt
 from numpy.random import default_rng
 from datetime import datetime
 from shutil import rmtree, copytree
@@ -27,7 +28,7 @@ def tanh(a, b):
 
 
 def tanhprime(a, b):
-    return lambda y: a*b + b/a*y**2
+    return lambda y: a*b - b/a*y**2
 
 # "layer" class:
 # implements a single layer of an MLP
@@ -35,7 +36,7 @@ def tanhprime(a, b):
 
 class Layer:
 
-    def __init__(self, fan_in, fan_out, activation, strtin_range, act_parameters=(1, 1), **kwargs):
+    def __init__(self, fan_in, fan_out, activation, strtin_range=1, act_parameters=(1.7159, 2/3), **kwargs):
 
         # initialization inputs:
         # fan_in (int):          number of inputs
@@ -47,12 +48,12 @@ class Layer:
         self.fan_in = fan_in
         self.fan_out = fan_out
 
-        if 'weights' is not in kwargs.keys():
+        if 'weights' not in kwargs.keys():
             # weights are implemented as a (fan_out) x (fan_in + 1) matrix using the convention of writing the bias as
             # the last column of the matrix
             temp_rng = default_rng()
             self.weights = strtin_range*(2*temp_rng.random((fan_out, fan_in+1)) - 1)
-            self.weights /= np.sqrt(fan_in)
+            self.weights *= np.sqrt(12/fan_in)/2
             self.delta_weights = np.zeros([fan_out, fan_in + 1])
 
         else:
@@ -124,7 +125,7 @@ class Layer:
         # if role == hidden unit k:
         # error_signal = sum_(j=1)^fan_out w_lj^(k+1)*delta_l
 
-        p_gradient = error_signal*self.derivative(self.latest_net)
+        p_gradient = error_signal*self.derivative(self.latest_out)
         self.delta_weights = self.delta_weights - np.outer(p_gradient, self.latest_in)
         output_error_signal = np.matmul(self.weights.transpose(), p_gradient)
 
@@ -134,14 +135,14 @@ class Layer:
     # for momentum and zeros delta_weights for successive training
     def update_weights(self, eta, alpha, lamda):
 
-        self.weights += eta*self.delta_weights + alpha*self.delta_weights_old - lamda*self.weights
-        self.delta_weights_old = self.delta_weights
+        self.delta_weights_old = eta*self.delta_weights + alpha*self.delta_weights_old
+        self.weights += self.delta_weights_old - lamda*self.weights
         self.delta_weights = np.zeros(self.delta_weights.shape)
 
 
 class NeuralNet:
 
-    def __init__(self, activation, units=(2, 2), eta=0.5, alpha=0.4, lamda=0.1, mb=20,
+    def __init__(self, activation, units=(2, 2), eta=0.1, alpha=0.1, lamda=0.01, mb=20,
                  task='classification', placeholder=False, **kwargs):
 
         # activation (string): name of activation function used
@@ -162,14 +163,14 @@ class NeuralNet:
 
             for i in range(len(units)-1):
 
-                lay = Layer(units[i], units[i+1], activation, 0.1)
+                lay = Layer(units[i], units[i+1], activation)
                 self.layers.append(lay)
 
             self.layers[-1].switch_role(task)
 
-        self.eta = eta/mb # learning rate
-        self.alpha = alpha/mb # momentum parameter
-        self.lamda = lamda/mb # regularization parameter
+        self.eta = eta*mb  # learning rate
+        self.alpha = alpha*mb  # momentum parameter
+        self.lamda = lamda*mb  # regularization parameter
         self.mb = mb # number of patterns in each mini-batch
         self.batch_SE = 0 # squared error on latest mini-batch
         self.epoch_SE = 0 # squared error on latest epoch
@@ -193,10 +194,10 @@ class NeuralNet:
         self.savestate(0)
 
     @classmethod
-    def load_net(cls, path, activation, eta=0.5, alpha=0.4, lamda=0.1, mb=20, task='classification', **kwargs):
+    def load_net(cls, path, activation, eta=0.1, alpha=0.1, lamda=0.01, mb=20, task='classification', **kwargs):
 
-        net = NeuralNet(activation, eta=0.5, alpha=0.4, lamda=0.1, mb=20,
-                        task='classification', placeholder=True, **kwargs)
+        net = NeuralNet(activation, eta=eta, alpha=alpha, lamda=lamda, mb=mb,
+                        task=task, placeholder=True, **kwargs)
 
         all_files = os.listdir(path)
         layer_files = [file for file in all_files if (file[:6] == 'layer_' and file[-4:] == '.csv')]
@@ -217,6 +218,10 @@ class NeuralNet:
     # stores training set inside of neural net
     def load_training(self, training_set, out=1):
 
+        train_examples = training_set.shape[0]
+        self.eta /= train_examples
+        self.lamda /= train_examples
+        self.alpha /= train_examples
         inp = training_set.shape[1] - out
         if inp != self.fan_in:
             raise ValueError('Number of input variables in training set doesn\'t match input units!')
@@ -333,7 +338,8 @@ class NeuralNet:
     # trains neural net for fixed number of epochs using mini-batch method; also saves MSE for each epoch on file
     def batch_training(self, epochs): #TODO: implement actual stopping conditions
 
-        epoch_errors = np.empty(epochs) # support array to store training errors
+        train_errors = np.empty(epochs) # support array to store training errors
+        validate_errors = np.empty(epochs)
         rng = default_rng() # rng object to shuffle training set
         # number of examples used in each epoch (lower than total number of TRAIN examples, see batch_split()
         exmple_number = self.training_set.shape[0] - self.training_set.shape[0] % self.mb
@@ -349,13 +355,26 @@ class NeuralNet:
 
                 self.update_weights()
 
-            epoch_errors[epoch] = self.epoch_SE/exmple_number
+            train_errors[epoch] = self.epoch_SE/exmple_number
+            validate_errors[epoch] = self.validate_net()
             if not epoch % 100: # prints training status on console every 100 epochs
                 self.savestate(epoch)
-                print('epoch {} done (error = {})'.format(epoch, self.validate_net()))
+                print('epoch {} done (error = {})'.format(epoch, validate_errors[epoch]))
 
-        error_path = os.path.join(self.net_dir, 'epoch_errors.csv')
-        np.savetxt(error_path, epoch_errors, delimiter=',') # saves history of training errors on file
+        train_error_path = os.path.join(self.net_dir, 'training_errors.csv')
+        np.savetxt(train_error_path, train_errors, delimiter=',') # saves history of training errors on file
+
+        validate_error_path = os.path.join(self.net_dir, 'validation_errors.csv')
+        np.savetxt(validate_error_path, validate_errors, delimiter=',')  # saves history of training errors on file
+
+        plt.plot(validate_errors, label='validation errors')
+        plt.plot(train_errors, label='training errors')
+        plt.xlabel('epoch')
+        plt.ylabel('MSE')
+        plt.legend()
+
+        error_graph_path = os.path.join(self.net_dir, 'errors.png')
+        plt.savefig(error_graph_path)
 
     # calculates MSE on the validation set with current weights
     def validate_net(self):
@@ -383,14 +402,18 @@ if __name__ == '__main__':
     rng.shuffle(data)
     example_number = data.shape[0]
 
-    net_shape = [5, 8, 5, 1]
+    net_shape = [5, 8, 1]
     split_id = int(np.round(example_number*train_ratio))
 
-    test_net = NeuralNet('sigmoid', net_shape, task='regression')
+    test_net = NeuralNet('tanh', net_shape, eta=0.01, alpha=0.12, lamda=0.005, task='regression')
 
     test_net.load_training(data[:split_id], 1)
     test_net.load_validation(data[split_id:], 1)
 
+    start_time = datetime.now()
+    print('net initialized at {}'.format(start_time))
     print('initial validation_error = {}'.format(test_net.validate_net()))
-    test_net.batch_training(3001)
+    test_net.batch_training(301)
+    end_time = datetime.now()
+    print('training completed at {} ({} elapsed)'.format(end_time, end_time-start_time))
     print('final validation_error = {}'.format(test_net.validate_net()))
