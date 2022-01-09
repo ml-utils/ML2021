@@ -336,16 +336,29 @@ class NeuralNet:
             yield batch
 
     # trains neural net for fixed number of epochs using mini-batch method; also saves MSE for each epoch on file
-    def batch_training(self, epochs): #TODO: implement actual stopping conditions
+    def batch_training(self, stopping='epochs', threshold=300, max_epochs=500): #TODO: implement actual stopping conditions
 
-        train_errors = np.empty(epochs) # support array to store training errors
-        validate_errors = np.empty(epochs)
-        rng = default_rng() # rng object to shuffle training set
+        # stopping (string):        name of stopping condition to be used during training
+        # threshold (int or float): numerical threshold at which to stop training;
+        #                           exact meaning depends on stopping condition
+        # max_epochs (int):         maximum number of epochs per training
+
+        # list of implemented stopping conditions:
+
+        # 'epochs': stop training after *threshold* number of epochs
+        #           if epoch = threshold: break
+        # 'MSE':    stop training once the relative change in the training error drops below *threshold*
+        #           if (error[epoch] - error[epoch-1])/error[epoch] < threshold: break
+
+        train_errors = np.empty(max_epochs)     # support array to store training errors
+        validate_errors = np.empty(max_epochs)  # support array to store validation errors
+        batch_rng = default_rng() # rng object to shuffle training set
+
         # number of examples used in each epoch (lower than total number of TRAIN examples, see batch_split()
-        exmple_number = self.training_set.shape[0] - self.training_set.shape[0] % self.mb
-        for epoch in range(epochs):
+        example_number = self.training_set.shape[0] - self.training_set.shape[0] % self.mb
+        for epoch in range(max_epochs):
             self.epoch_SE = 0
-            rng.shuffle(self.training_set) # shuffle training set
+            batch_rng.shuffle(self.training_set) # shuffle training set
             for batch in self.batch_split():
 
                 for example in batch:
@@ -355,20 +368,30 @@ class NeuralNet:
 
                 self.update_weights()
 
-            train_errors[epoch] = self.epoch_SE/exmple_number
+            train_errors[epoch] = self.epoch_SE/example_number
             validate_errors[epoch] = self.validate_net()
             if not epoch % 100: # prints training status on console every 100 epochs
                 self.savestate(epoch)
                 print('epoch {} done (error = {})'.format(epoch, validate_errors[epoch]))
 
+            # check for stopping conditions
+            if stopping == 'epochs':
+                if epoch == threshold:
+                    break
+
+            if stopping == 'MSE':
+                relative_change = (train_errors[epoch] - train_errors[epoch-1])/train_errors[epoch-1]
+                if relative_change < threshold:
+                    break
+
         train_error_path = os.path.join(self.net_dir, 'training_errors.csv')
-        np.savetxt(train_error_path, train_errors, delimiter=',') # saves history of training errors on file
+        np.savetxt(train_error_path, train_errors[:epoch+1], delimiter=',')  # saves history of training errors on file
 
         validate_error_path = os.path.join(self.net_dir, 'validation_errors.csv')
-        np.savetxt(validate_error_path, validate_errors, delimiter=',')  # saves history of training errors on file
+        np.savetxt(validate_error_path, validate_errors[:epoch+1], delimiter=',')  # saves history of training errors on file
 
-        plt.plot(validate_errors, label='validation errors')
-        plt.plot(train_errors, label='training errors')
+        plt.plot(validate_errors[:epoch+1], label='validation errors')
+        plt.plot(train_errors[:epoch+1], label='training errors')
         plt.xlabel('epoch')
         plt.ylabel('MSE')
         plt.legend()
@@ -413,7 +436,7 @@ if __name__ == '__main__':
     start_time = datetime.now()
     print('net initialized at {}'.format(start_time))
     print('initial validation_error = {}'.format(test_net.validate_net()))
-    test_net.batch_training(301)
+    test_net.batch_training()
     end_time = datetime.now()
     print('training completed at {} ({} elapsed)'.format(end_time, end_time-start_time))
     print('final validation_error = {}'.format(test_net.validate_net()))
