@@ -51,9 +51,12 @@ class Layer:
         if 'weights' not in kwargs.keys():
             # weights are implemented as a (fan_out) x (fan_in + 1) matrix using the convention of writing the bias as
             # the last column of the matrix
+            # by default weights are extracted from a uniform distribution bounded between +- sqrt(6/(fan_out+ fan_in))
+            # according to Xavier initialization
+
             temp_rng = default_rng()
             self.weights = strtin_range*(2*temp_rng.random((fan_out, fan_in+1)) - 1)
-            self.weights *= np.sqrt(12/fan_in)/2
+            self.weights *= np.sqrt(6/(fan_in+fan_out))
             self.delta_weights = np.zeros([fan_out, fan_in + 1])
 
         else:
