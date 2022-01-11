@@ -78,47 +78,8 @@ def get_dataset1(file_abs_path, batch_size, sep, dev_split_ratio=0.85, train_spl
     return train_split, val_split, test_split, col_names
 
 
-def main():
-    print("TensorFlow version:", tf.__version__)
-    # Make numpy values easier to read.
-    np.set_printoptions(precision=3, suppress=True)
-
-    file_abs_path, has_header_row, sep, col_names, target_col_name, mini_batch_size, layer_sizes, NormalizationClass, \
-    activation_fun, l2_lambda, regularizer, epochs_count, error_fn, learning_rate, adaptive_lr \
-        = get_config_for_airfoil_dataset_tensorflow()
-
-    train_split, val_split, test_split, col_names \
-        = get_dataset1(file_abs_path, batch_size=mini_batch_size, sep=sep,  # dev_split_ratio=0.85, train_split_ratio=0.7
-                                    col_names=col_names, target_col_name=target_col_name, has_header_row=True)  #col_names=None
-    # nb, as a side effect, these convert from pandas dataframe to numpy ndarray
-    print('getting training set features and labels:')
-    train_features, train_labels = get_features_and_labels(train_split, target_col_name)
-    print('getting validation set features and labels:')
-    val_features, val_labels = get_features_and_labels(val_split, target_col_name)
-    print('getting test set features and labels:')
-    test_features, test_labels = get_features_and_labels(test_split, target_col_name)
-
-    data_analysis(train_split, col_names)
-    # tf.keras.layers.Normalization(axis=-1)  # normalization layer
-    features_normalizer = NormalizationClass()
-    labels_normalizer = NormalizationClass()
-    features_normalizer.adapt(np.array(train_features))
-    labels_normalizer.adapt(np.array(train_labels))
-    print('normalized.mean.numpy():')
-    print(features_normalizer.mean.numpy())
-    with np.printoptions(precision=2, suppress=True):
-        print('First example:', train_features[:1])
-        print('Normalized:', features_normalizer(train_features[:1]).numpy())
-    # train_features = normalize(train_features) this is done as a layer
-    # print('train_features after normalization:')
-    # print(train_features)
-
-    # training_ds = tf.data.Dataset.from_tensor_slices((train_features, train_labels))
-    # DATASET_SIZE = tf.data.experimental.cardinality(training_ds).numpy()
-    # training_batches = training_ds.shuffle(DATASET_SIZE).batch(mini_batch_size)
-
-    # todo: linear base expansion (x^2) with numpy or pandas
-
+def create_and_compile_model(layer_sizes, activation_fun, regularizer, features_normalizer,
+                             train_features, train_labels, adaptive_lr, error_fn):
     model = tf.keras.models.Sequential(
         get_layers_descr_as_list_tensorflow(layer_sizes, activation_fun, regularizer, features_normalizer)
     )
@@ -137,11 +98,20 @@ def main():
     model.compile(optimizer=adaptive_lr,
                   loss=error_fn,
                   metrics=['mse'])
+    return model
 
+
+def fit_and_evaluate_model(model, train_features, train_labels, epochs_count, mini_batch_size,
+                           val_features, val_labels):
     history = model.fit(train_features, train_labels, epochs=epochs_count, batch_size=mini_batch_size, verbose=0,
                         validation_data=(val_features, val_labels),)
     metrics_results = model.evaluate(val_features, val_labels, return_dict=True, verbose=0)
+    return history, metrics_results
 
+
+def plot_results(model, metrics_results, history, file_abs_path, activation_fun, mini_batch_size,
+                 adaptive_lr, error_fn, l2_lambda, NormalizationClass, train_features, train_labels,
+                 val_features, val_labels):
     print('validation, metrics_results:')
     print(model.metrics_names)
     print(metrics_results)
@@ -204,6 +174,78 @@ def main():
     l3, l4 = plot_predicted_points(ax2, hyperparams_descr, val_labels, val_predictions, 'blue', 'orange')
     plt.legend([l1, l2], ["actual_labels", "predicted_labels"])
     plt.show()
+
+
+def get_hyperparams_config_and_data():
+    file_abs_path, has_header_row, sep, col_names, target_col_name, mini_batch_size, layer_sizes, NormalizationClass, \
+    activation_fun, l2_lambda, regularizer, epochs_count, error_fn, learning_rate, adaptive_lr \
+        = get_config_for_airfoil_dataset_tensorflow()
+
+    train_split, val_split, test_split, col_names \
+        = get_dataset1(file_abs_path, batch_size=mini_batch_size, sep=sep,  # dev_split_ratio=0.85, train_split_ratio=0.7
+                                    col_names=col_names, target_col_name=target_col_name, has_header_row=True)  #col_names=None
+    # nb, as a side effect, these convert from pandas dataframe to numpy ndarray
+    print('getting training set features and labels:')
+    train_features, train_labels = get_features_and_labels(train_split, target_col_name)
+    print('getting validation set features and labels:')
+    val_features, val_labels = get_features_and_labels(val_split, target_col_name)
+    print('getting test set features and labels:')
+    test_features, test_labels = get_features_and_labels(test_split, target_col_name)
+
+    return file_abs_path, has_header_row, sep, col_names, target_col_name, mini_batch_size, layer_sizes, \
+           NormalizationClass, activation_fun, l2_lambda, regularizer, epochs_count, error_fn, \
+           learning_rate, adaptive_lr, train_split, val_split, test_split, col_names, \
+           train_features, train_labels, val_features, val_labels, test_features, test_labels
+
+
+def do_preprocessing(train_split, col_names, train_features, train_labels, NormalizationClass):
+    data_analysis(train_split, col_names)
+    # tf.keras.layers.Normalization(axis=-1)  # normalization layer
+    features_normalizer = NormalizationClass()
+    labels_normalizer = NormalizationClass()
+    features_normalizer.adapt(np.array(train_features))
+    # nb: this does not actually does the normalization preprocessing, which is done in a NN layer
+    labels_normalizer.adapt(np.array(train_labels))
+    print('normalized.mean.numpy():')
+    print(features_normalizer.mean.numpy())
+    with np.printoptions(precision=2, suppress=True):
+        print('First example:', train_features[:1])
+        print('Normalized:', features_normalizer(train_features[:1]).numpy())
+    # train_features = normalize(train_features) this is done as a layer
+    # print('train_features after normalization:')
+    # print(train_features)
+
+    # training_ds = tf.data.Dataset.from_tensor_slices((train_features, train_labels))
+    # DATASET_SIZE = tf.data.experimental.cardinality(training_ds).numpy()
+    # training_batches = training_ds.shuffle(DATASET_SIZE).batch(mini_batch_size)
+
+    # todo: linear base expansion (x^2) with numpy or pandas
+
+    return features_normalizer, labels_normalizer
+
+
+def main():
+    print("TensorFlow version:", tf.__version__)
+    # Make numpy values easier to read.
+    np.set_printoptions(precision=3, suppress=True)
+
+    file_abs_path, has_header_row, sep, col_names, target_col_name, mini_batch_size, layer_sizes, \
+    NormalizationClass, activation_fun, l2_lambda, regularizer, epochs_count, error_fn, \
+    learning_rate, adaptive_lr, train_split, val_split, test_split, col_names, \
+    train_features, train_labels, val_features, val_labels, test_features, test_labels \
+        = get_hyperparams_config_and_data()
+    features_normalizer, labels_normalizer\
+        = do_preprocessing(train_split, col_names, train_features, train_labels, NormalizationClass)
+
+    model = create_and_compile_model(layer_sizes, activation_fun, regularizer, features_normalizer,
+                                     train_features, train_labels, adaptive_lr, error_fn)
+
+    history, metrics_results = fit_and_evaluate_model(model, train_features, train_labels, epochs_count, mini_batch_size,
+                           val_features, val_labels)
+
+    plot_results(model, metrics_results, history, file_abs_path, activation_fun, mini_batch_size,
+                 adaptive_lr, error_fn, l2_lambda, NormalizationClass, train_features, train_labels,
+                 val_features, val_labels)
 
 
 def plot_predicted_points(ax, hyperparams_descr, actual_labels, predicted_labels, actual_color, predicted_color):
