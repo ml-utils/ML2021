@@ -96,9 +96,8 @@ def get_config_for_dataset(dtype1, dtype2, col_names, header, features_scaler, h
     print('root dir:', root_dir)
     file_abs_path = os.path.join(root_dir, '../datasplitting/assets/', assets_subdir, filename)
 
-    hyperparams_descr = get_hyperparams_descr(filename, model_descr, hidden_layer_sizes, activation_fun,
-                                              mini_batch_size, learning_rate, momentum, adaptive_learning_rate,
-                                              loss_fn, l2_lambda, features_scaler)
+    hyperparams_descr = get_hyperparams_descr(filename, model_descr, hidden_layer_sizes, activation_fun, learning_rate,
+                                              momentum, adaptive_learning_rate, loss_fn, l2_lambda, features_scaler)
 
     return hidden_layer_sizes, activation_fun, mini_batch_size, learning_rate, momentum, \
            adaptive_learning_rate, loss_fn, l2_lambda, hyperparams_descr, file_abs_path, \
@@ -128,7 +127,7 @@ def get_config_for_airfoil_dataset_tensorflow():
     activation_fun = 'relu'
     l2_lambda = 0.001
     regularizer = tf.keras.regularizers.L2(l2_lambda)
-    epochs_count = 300
+    epochs_count = 50
     error_fn = tf.keras.losses.MeanSquaredError()  # SparseCategoricalCrossentropy(from_logits=True)
     learning_rate = 0.001
     momentum = 0.9

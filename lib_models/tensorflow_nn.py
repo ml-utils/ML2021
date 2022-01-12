@@ -135,9 +135,9 @@ def plot_results(model, metrics_results, history, file_abs_path, activation_fun,
         else:
             model_descr += '' # str(layer)
 
-    hyperparams_descr = get_hyperparams_descr(file_abs_path, model_descr, activation_fun,
-                          mini_batch_size, adaptive_learning_rate=adaptive_lr, optimizer=adaptive_lr,
-                          error_fn=error_fn, l2_lambda=l2_lambda, normalizer=NormalizationClass)
+    hyperparams_descr = get_hyperparams_descr(file_abs_path, model_descr, activation_fun, mini_batch_size,
+                                              error_fn=error_fn, l2_lambda=l2_lambda, normalizer=NormalizationClass,
+                                              optimizer=adaptive_lr)
     print('hyperparams_descr:')
     print(hyperparams_descr)
     import matplotlib.gridspec as gridspec
@@ -268,6 +268,7 @@ def model_summary():
 def data_analysis(train_split, col_names):
     import seaborn as sns
 
+    print('starting pairplot of features..')
     sns.pairplot(train_split, diag_kind='kde')  # train_dataset[col_names] ie col names: ['MPG', 'Cylinders', 'Displacement', 'Weight']
     print('train_split.describe().transpose()')
     print(train_split.describe().transpose()[['mean', 'std']])

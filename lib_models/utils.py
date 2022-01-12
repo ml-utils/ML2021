@@ -7,10 +7,8 @@ def plot_hyperparams_descr(ax, hyperparams_descr):
     plt.text(0.82, 0.95, hyperparams_descr, horizontalalignment='left', verticalalignment='top', transform=ax.transAxes)
 
 
-def get_hyperparams_descr(file_abs_path, model_descr, activation_fun,
-                          mini_batch_size, adaptive_learning_rate,
-                          error_fn, l2_lambda, momentum=None, learning_rate=None, hidden_layer_sizes=None,
-                          normalizer=None, optimizer=None,
+def get_hyperparams_descr(file_abs_path, model_descr, activation_fun, mini_batch_size, error_fn, l2_lambda,
+                          momentum=None, learning_rate=None, hidden_layer_sizes=None, normalizer=None, optimizer=None,
                           features_scaler=None):
     hyperparams_descr_list = []
 
