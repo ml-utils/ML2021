@@ -13,16 +13,17 @@ from dataset_configs import get_config_for_winequality_dataset_tensorflow, get_l
     get_config_for_airfoil_dataset_tensorflow
 
 
-def get_features_and_labels(dataset_split, target_col_name):
+def get_features_and_labels(dataset_split, target_col_name, verbose=False):
     features = dataset_split.copy()
     labels = features.pop(target_col_name)
     features = features.to_numpy()  # features = np.array(features, names=True)
     labels = labels.to_numpy()
     # (x_train, y_train), (x_test, y_test) = mnist.load_data()  # returns Tuple of Numpy arrays
-    print('features, patterns count: ',  len(features), ', head: ')
-    print(features[:5])
-    print('labels, head: ')
-    print(labels[:5])
+    if verbose:
+        print('features, patterns count: ',  len(features), ', head: ')
+        print(features[:5])
+        print('labels, head: ')
+        print(labels[:5])
 
     return features, labels
 
@@ -33,30 +34,32 @@ def shuffle_pandas_dataframe(df):
 
 
 def get_dataset1(file_abs_path, batch_size, sep, dev_split_ratio=0.85, train_split_ratio=0.7,
-                 target_col_name=None, has_header_row=False, col_names=None):
+                 target_col_name=None, has_header_row=False, col_names=None, verbose=False):
     ds = pd.read_csv(file_abs_path, sep=sep, names=col_names, header=0)  # header=header, dtype=dtype1
 
     if has_header_row:
         col_names = ds.columns
     elif col_names is not None:
         ds.columns = col_names
-    print('null values per column: ')
-    print(ds.isna().sum())
-    # ds = ds.dropna()
-    DATASET_SIZE = len(ds)
-    times_repeat_dataset = 1
-    print('DATASET_SIZE: ', DATASET_SIZE)
-    # header=header_rows_nums, names=col_names, dtype=dtype1
-    #
-    #     shuffle=True,
-    #     shuffle_buffer_size=10000,
-    print('type(ds): ', type(ds))
 
-    # print(tf.data.experimental.cardinality(ds)) # INFINITE = -1,
-    # UNKNOWN = -2, (e.g. when the
-    #   dataset source is a file).
-    print('ds:')
-    print(ds)
+    DATASET_SIZE = len(ds)
+    if verbose:
+        print('null values per column: ')
+        print(ds.isna().sum())
+        # ds = ds.dropna()
+        times_repeat_dataset = 1
+        print('DATASET_SIZE: ', DATASET_SIZE)
+        # header=header_rows_nums, names=col_names, dtype=dtype1
+        #
+        #     shuffle=True,
+        #     shuffle_buffer_size=10000,
+        print('type(ds): ', type(ds))
+
+        # print(tf.data.experimental.cardinality(ds)) # INFINITE = -1,
+        # UNKNOWN = -2, (e.g. when the
+        #   dataset source is a file).
+        print('ds:')
+        print(ds)
 
     val_split_ratio = dev_split_ratio - train_split_ratio
     test_split_ratio = 1 - dev_split_ratio
@@ -66,59 +69,70 @@ def get_dataset1(file_abs_path, batch_size, sep, dev_split_ratio=0.85, train_spl
 
     # full_dataset = tf.data.TFRecordDataset(FLAGS.input_file)
     ds_shuffled = shuffle_pandas_dataframe(ds)
-    print('ds_shuffled')
-    print(ds_shuffled)
+    if verbose:
+        print('ds_shuffled')
+        print(ds_shuffled)
 
     from sklearn.model_selection import train_test_split
     dev_split, test_split = train_test_split(ds_shuffled, test_size=test_split_ratio)
     train_split, val_split = train_test_split(dev_split, test_size=val_split_ratio)
-    print('train_split')
-    print(train_split)
+    if verbose:
+        print('train_split')
+        print(train_split)
 
     return train_split, val_split, test_split, col_names
 
 
-def create_and_compile_model(layer_sizes, activation_fun, regularizer, features_normalizer,
+def create_and_compile_model(input_dim, num_hid_layers, units_per_layer, out_dim,
+                             activation_fun, regularizer, features_normalizer,
                              train_features, train_labels, adaptive_lr, error_fn):
     model = tf.keras.models.Sequential(
-        get_layers_descr_as_list_tensorflow(layer_sizes, activation_fun, regularizer, features_normalizer)
+        get_layers_descr_as_list_tensorflow(input_dim, num_hid_layers, units_per_layer, out_dim,
+                                            activation_fun, regularizer, features_normalizer)
     )
     print('model.output_shape:')
     print(model.output_shape)
 
-    tf.keras.utils.plot_model(model=model, to_file="model.png", rankdir="LR", dpi=72, show_shapes=True)
+    # tf.keras.utils.plot_model(model=model, to_file="model.png", rankdir="LR", dpi=72, show_shapes=True)
 
+    '''
     train_predictions = model(train_features).numpy()
     print('predictions on training set before training, head')
     print(train_predictions[:5])
 
     print('training error_fn(train_labels, train_predictions)')
     print(error_fn(train_labels, train_predictions).numpy())
-
+    '''
     model.compile(optimizer=adaptive_lr,
                   loss=error_fn,
                   metrics=['mse'])
     return model
 
 
-def fit_and_evaluate_model(model, train_features, train_labels, epochs_count, mini_batch_size,
-                           val_features, val_labels):
-    history = model.fit(train_features, train_labels, epochs=epochs_count, batch_size=mini_batch_size, verbose=0,
-                        validation_data=(val_features, val_labels),)
+def fit_and_evaluate_model(model, train_features, train_labels, mini_batch_size, epochs_count=None,
+                           val_features=None, val_labels=None, early_stopping_callback=None):
+    if early_stopping_callback is not None:
+        print(early_stopping_callback)
+        history = model.fit(train_features, train_labels, callbacks=[early_stopping_callback],
+                            epochs=1500,
+                            validation_data=(val_features, val_labels),
+                            batch_size=mini_batch_size, verbose=1)
+    else:
+        history = model.fit(train_features, train_labels, validation_data=(val_features, val_labels),
+                            epochs=epochs_count, batch_size=mini_batch_size, verbose=0)
+
+    print(len(history.history['loss']), ' epochs done.')
+
     metrics_results = model.evaluate(val_features, val_labels, return_dict=True, verbose=0)
-    return history, metrics_results
 
-
-def plot_results(model, metrics_results, history, file_abs_path, activation_fun, mini_batch_size,
-                 adaptive_lr, error_fn, l2_lambda, NormalizationClass, train_features, train_labels,
-                 val_features, val_labels):
-    print('validation, metrics_results:')
-    print(model.metrics_names)
-    print(metrics_results)
+    '''
+    print('validation, metrics_results from validation set:')
+    print('model.metrics_names: ', model.metrics_names)
+    print('metrics_results: ', metrics_results)
     print(metrics_results.keys())
 
     # Plot history: MAE
-    print('history')
+    print('history during training but on validation set:')
     print(history)
     print(history.params)
     print(history.history.keys())
@@ -126,14 +140,28 @@ def plot_results(model, metrics_results, history, file_abs_path, activation_fun,
     print(history.history['val_loss'][-1])
     print('history.history[val_mse][last]')
     print(history.history['val_mse'][-1])
+    '''
+    return history, metrics_results
 
+
+def do_Early_stopping():
+    early_stopping_callback = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=3)
+    history = model.fit(np.arange(100).reshape(5, 20), np.zeros(5),
+                        batch_size=1, callbacks=[early_stopping_callback],
+                        verbose=0)
+    len(history.history['loss'])  # Only 4 epochs are run.
+
+
+def plot_results(model, metrics_results, history, file_abs_path, activation_fun, mini_batch_size,
+                 adaptive_lr, error_fn, l2_lambda, NormalizationClass, train_features, train_labels,
+                 val_features, val_labels):
     # model_descr =  str(model.summary())
     model_descr = ''
     for layer in model.layers:
         if hasattr(layer, 'kernel'):
             model_descr += str(layer.kernel.shape)
         else:
-            model_descr += '' # str(layer)
+            model_descr += ''  # str(layer)
 
     hyperparams_descr = get_hyperparams_descr(file_abs_path, model_descr, activation_fun, mini_batch_size,
                                               error_fn=error_fn, l2_lambda=l2_lambda, normalizer=NormalizationClass,
@@ -177,8 +205,9 @@ def plot_results(model, metrics_results, history, file_abs_path, activation_fun,
 
 
 def get_hyperparams_config_and_data():
-    file_abs_path, has_header_row, sep, col_names, target_col_name, mini_batch_size, layer_sizes, NormalizationClass, \
-    activation_fun, l2_lambda, regularizer, epochs_count, error_fn, learning_rate, adaptive_lr \
+    file_abs_path, has_header_row, sep, col_names, target_col_name, mini_batch_size, \
+    input_dim, hidden_layers, units_per_hid_layer, out_dim, \
+    NormalizationClass, activation_fun, l2_lambda, regularizer, epochs_count, error_fn, learning_rate, adaptive_lr \
         = get_config_for_airfoil_dataset_tensorflow()
 
     train_split, val_split, test_split, col_names \
@@ -192,25 +221,29 @@ def get_hyperparams_config_and_data():
     print('getting test set features and labels:')
     test_features, test_labels = get_features_and_labels(test_split, target_col_name)
 
-    return file_abs_path, has_header_row, sep, col_names, target_col_name, mini_batch_size, layer_sizes, \
+    return file_abs_path, has_header_row, sep, col_names, target_col_name, mini_batch_size, \
+           input_dim, hidden_layers, units_per_hid_layer, out_dim, \
            NormalizationClass, activation_fun, l2_lambda, regularizer, epochs_count, error_fn, \
            learning_rate, adaptive_lr, train_split, val_split, test_split, col_names, \
            train_features, train_labels, val_features, val_labels, test_features, test_labels
 
 
-def do_preprocessing(train_split, col_names, train_features, train_labels, NormalizationClass):
+def do_preprocessing(train_split, col_names, train_features, train_labels, NormalizationClass, verbose=False):
     data_analysis(train_split, col_names)
     # tf.keras.layers.Normalization(axis=-1)  # normalization layer
     features_normalizer = NormalizationClass()
-    labels_normalizer = NormalizationClass()
+    labels_normalizer = NormalizationClass(axis=None)
     features_normalizer.adapt(np.array(train_features))
     # nb: this does not actually does the normalization preprocessing, which is done in a NN layer
+    print(train_labels)
+    print(np.array(train_labels))
     labels_normalizer.adapt(np.array(train_labels))
-    print('normalized.mean.numpy():')
-    print(features_normalizer.mean.numpy())
-    with np.printoptions(precision=2, suppress=True):
-        print('First example:', train_features[:1])
-        print('Normalized:', features_normalizer(train_features[:1]).numpy())
+    if verbose:
+        print('normalized.mean.numpy():')
+        print(features_normalizer.mean.numpy())
+        with np.printoptions(precision=2, suppress=True):
+            print('First example:', train_features[:1])
+            print('Normalized:', features_normalizer(train_features[:1]).numpy())
     # train_features = normalize(train_features) this is done as a layer
     # print('train_features after normalization:')
     # print(train_features)
@@ -225,11 +258,19 @@ def do_preprocessing(train_split, col_names, train_features, train_labels, Norma
 
 
 def main():
-    print("TensorFlow version:", tf.__version__)
+    from packaging import version
+    expected_min_tf_version = version.parse("2.7.0")
+    actual_tf_version = version.parse(tf.__version__)
+    print("TensorFlow version:", actual_tf_version)
+    if actual_tf_version < expected_min_tf_version:
+        print('Warning: this package is developed for tensorflow version ', expected_min_tf_version,
+              ' your version is ', actual_tf_version)
+
     # Make numpy values easier to read.
     np.set_printoptions(precision=3, suppress=True)
 
-    file_abs_path, has_header_row, sep, col_names, target_col_name, mini_batch_size, layer_sizes, \
+    file_abs_path, has_header_row, sep, col_names, target_col_name, mini_batch_size, \
+    input_dim, num_hid_layers, units_per_layer, out_dim, \
     NormalizationClass, activation_fun, l2_lambda, regularizer, epochs_count, error_fn, \
     learning_rate, adaptive_lr, train_split, val_split, test_split, col_names, \
     train_features, train_labels, val_features, val_labels, test_features, test_labels \
@@ -237,12 +278,20 @@ def main():
     features_normalizer, labels_normalizer\
         = do_preprocessing(train_split, col_names, train_features, train_labels, NormalizationClass)
 
-    model = create_and_compile_model(layer_sizes, activation_fun, regularizer, features_normalizer,
+    model = create_and_compile_model(input_dim, num_hid_layers, units_per_layer, out_dim,
+                                     activation_fun, regularizer, features_normalizer,
                                      train_features, train_labels, adaptive_lr, error_fn)
 
-    history, metrics_results = fit_and_evaluate_model(model, train_features, train_labels, epochs_count, mini_batch_size,
-                           val_features, val_labels)
+    early_stopping_callback = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=20,
+                                                               restore_best_weights=True,
+                                                               mode='min', verbose=1, min_delta=0)
 
+    history, metrics_results = fit_and_evaluate_model(model, train_features, train_labels,
+                                                      mini_batch_size,
+                                                      val_features=val_features, val_labels=val_labels,
+                                                      early_stopping_callback=early_stopping_callback)
+    print('history.history[loss]')
+    print(history.history['loss'])
     plot_results(model, metrics_results, history, file_abs_path, activation_fun, mini_batch_size,
                  adaptive_lr, error_fn, l2_lambda, NormalizationClass, train_features, train_labels,
                  val_features, val_labels)
@@ -265,13 +314,15 @@ def model_summary():
     slim.model_analyzer.analyze_vars(model_vars, print_info=True)
 
 
-def data_analysis(train_split, col_names):
+def data_analysis(train_split, col_names, do_pairplot=False, verbose=False):
     import seaborn as sns
 
-    print('starting pairplot of features..')
-    sns.pairplot(train_split, diag_kind='kde')  # train_dataset[col_names] ie col names: ['MPG', 'Cylinders', 'Displacement', 'Weight']
-    print('train_split.describe().transpose()')
-    print(train_split.describe().transpose()[['mean', 'std']])
+    if do_pairplot:
+        print('starting pairplot of features..')
+        sns.pairplot(train_split, diag_kind='kde')  # train_dataset[col_names] ie col names: ['MPG', 'Cylinders', 'Displacement', 'Weight']
+    if verbose:
+        print('train_split.describe().transpose()')
+        print(train_split.describe().transpose()[['mean', 'std']])
 
 
 if __name__ == '__main__':

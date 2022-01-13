@@ -21,7 +21,12 @@ def get_config_for_winequality_dataset_tensorflow():
 
     # dev_split_ratio=0.85, train_split_ratio=0.7
 
-    NormalizationClass = tf.keras.layers.experimental.preprocessing.Normalization
+    from packaging import version
+    if version.parse(tf.__version__) < version.parse("2.6.0"):
+        NormalizationClass = tf.keras.layers.experimental.preprocessing.Normalization
+    else:
+        print('doing normalization as per tf v.2.7')
+        NormalizationClass = tf.keras.layers.Normalization
 
     activation_fun = 'relu'
     l2_lambda = 0.001
@@ -37,26 +42,20 @@ def get_config_for_winequality_dataset_tensorflow():
            activation_fun, l2_lambda, regularizer, epochs_count, error_fn, learning_rate, adaptive_lr
 
 
-def get_layers_descr_as_list_tensorflow(layer_sizes, activation_fun, regularizer, features_normalizer=None):
+def get_layers_descr_as_list_tensorflow(input_dim, num_hid_layers, units_per_layer, out_dim, activation_fun, regularizer, features_normalizer=None):
     import tensorflow as tf
     layers = []
 
-    print('layer_sizes: ', layer_sizes)
-
     if features_normalizer is not None:
         layers.append(features_normalizer)
-    input_dim = layer_sizes[0]
+
     layers.append(tf.keras.layers.InputLayer(input_shape=(input_dim,)))
-    last_layer_idx = len(layer_sizes) - 1
-    print('last_layer_idx: ', last_layer_idx)
-    for layer_idx in range(len(layer_sizes)):
-        is_last_layer = layer_idx >= last_layer_idx
-        if not is_last_layer:  # NB.: not adding an activation function after the last layer
-            new_layer = tf.keras.layers.Dense(units=layer_sizes[layer_idx], activation=activation_fun,
-                                              bias_regularizer=regularizer, activity_regularizer=regularizer)
-        else:
-            new_layer = tf.keras.layers.Dense(units=layer_sizes[layer_idx])
-        layers.append(new_layer)
+    for layer_idx in range(num_hid_layers):
+        layers.append(tf.keras.layers.Dense(units=units_per_layer, activation=activation_fun,
+                                              bias_regularizer=regularizer, activity_regularizer=regularizer))
+    # NB.: not adding an activation function after the last layer
+    layers.append(tf.keras.layers.Dense(units=out_dim))
+
     return layers
 
 
@@ -122,20 +121,31 @@ def get_config_for_airfoil_dataset_tensorflow():
 
     # dev_split_ratio=0.85, train_split_ratio=0.7
 
-    NormalizationClass = tf.keras.layers.experimental.preprocessing.Normalization
+    from packaging import version
+    if version.parse(tf.__version__) < version.parse("2.6.0"):
+        NormalizationClass = tf.keras.layers.experimental.preprocessing.Normalization
+    else:
+        print('doing normalization as per tf v.2.7')
+        NormalizationClass = tf.keras.layers.Normalization
 
     activation_fun = 'relu'
-    l2_lambda = 0.001
+    l2_lambda = 0.001  # 0.001
     regularizer = tf.keras.regularizers.L2(l2_lambda)
-    epochs_count = 50
+    epochs_count = 1500
     error_fn = tf.keras.losses.MeanSquaredError()  # SparseCategoricalCrossentropy(from_logits=True)
-    learning_rate = 0.001
-    momentum = 0.9
-    adaptive_lr = tf.optimizers.Adam(learning_rate=learning_rate)
+    learning_rate = 0.0001  # 0.001
+    momentum = 0.5  # 0.9
+    adaptive_lr = tf.optimizers.RMSprop(learning_rate=learning_rate, momentum=momentum) # tf.optimizers.Adam(learning_rate=learning_rate)
 
-    layer_sizes = (5, 120, 1)
+    layer_sizes = (5, 16, 1)
+    input_dim = layer_sizes[0]
+    hidden_layers = 1
+    units_per_hid_layer = layer_sizes[1]
+    out_dim = layer_sizes[2]
 
-    return file_abs_path, has_header_row, sep, col_names, target_col_name, mini_batch_size, layer_sizes, NormalizationClass, \
+    return file_abs_path, has_header_row, sep, col_names, target_col_name, mini_batch_size, \
+           input_dim, hidden_layers, units_per_hid_layer, out_dim, \
+           NormalizationClass, \
            activation_fun, l2_lambda, regularizer, epochs_count, error_fn, learning_rate, adaptive_lr
 
 
