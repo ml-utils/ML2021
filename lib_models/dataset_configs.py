@@ -2,7 +2,13 @@ import os
 import numpy as np
 from sklearn.preprocessing import RobustScaler, StandardScaler, Normalizer, MinMaxScaler, MaxAbsScaler
 
-from utils import get_hyperparams_descr
+from lib_models.utils import get_hyperparams_descr
+from nn import NeuralNet
+import numpy as np
+from numpy.random import default_rng
+from datetime import datetime
+from shutil import rmtree, copytree
+import os
 
 
 def get_config_for_winequality_dataset_tensorflow():
@@ -42,13 +48,16 @@ def get_config_for_winequality_dataset_tensorflow():
            activation_fun, l2_lambda, regularizer, epochs_count, error_fn, learning_rate, adaptive_lr
 
 
-def get_layers_descr_as_list_tensorflow(input_dim, num_hid_layers, units_per_layer, out_dim, activation_fun, regularizer, features_normalizer=None):
+def get_layers_descr_as_list_tensorflow(input_dim, num_hid_layers, units_per_layer, out_dim, activation_fun,
+                                        regularizer, features_normalizer=None):
     import tensorflow as tf
     layers = []
 
     if features_normalizer is not None:
         layers.append(features_normalizer)
-
+        print('Using normalization layer: ', str(features_normalizer))
+    else:
+        print('No normalization layer is being used in the model')
     layers.append(tf.keras.layers.InputLayer(input_shape=(input_dim,)))
     for layer_idx in range(num_hid_layers):
         layers.append(tf.keras.layers.Dense(units=units_per_layer, activation=activation_fun,
@@ -57,6 +66,44 @@ def get_layers_descr_as_list_tensorflow(input_dim, num_hid_layers, units_per_lay
     layers.append(tf.keras.layers.Dense(units=out_dim))
 
     return layers
+
+
+def get_config_for_custom_nn():
+
+    # trains basic neural network on the airfoil dataset
+    root_dir = os.getcwd()
+    data_dir = os.path.join(root_dir, '..\\datasplitting\\assets\\airfoil\\airfoil_self_noise.dat.csv')
+    data = np.loadtxt(data_dir)
+    train_ratio = 0.7
+    rng = default_rng()
+    rng.shuffle(data)
+    example_number = data.shape[0]
+
+    lr_eta = 0.01
+    alpha_momentum = 0.12
+    lambda_regularization = 0.005
+    task_type = 'regression'
+    net_shape = [5, 8, 1]
+    split_id = int(np.round(example_number * train_ratio))
+    activation_fun = 'tanh'
+    return activation_fun, net_shape, lr_eta,
+    file_abs_path, has_header_row, sep, col_names, target_col_name, mini_batch_size, \
+    input_dim, hidden_layers, units_per_hid_layer, out_dim, \
+    NormalizationClass, \
+    activation_fun, l2_lambda, regularizer, epochs_count, error_fn, learning_rate, adaptive_lr
+    test_net = nn.NeuralNet(activation_fun, net_shape, eta=lr_eta, alpha=alpha_momentum, lamda=lambda_regularization,
+                            task=task_type)
+
+    test_net.load_training(data[:split_id], 1)
+    test_net.load_validation(data[split_id:], 1)
+
+    start_time = datetime.now()
+    print('net initialized at {}'.format(start_time))
+    print('initial validation_error = {}'.format(test_net.validate_net()))
+    test_net.batch_training()
+    end_time = datetime.now()
+    print('training completed at {} ({} elapsed)'.format(end_time, end_time - start_time))
+    print('final validation_error = {}'.format(test_net.validate_net()))
 
 
 def get_config_for_winequality_dataset_pytorch():

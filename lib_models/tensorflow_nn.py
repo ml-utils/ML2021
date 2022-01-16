@@ -8,12 +8,12 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-from utils import plot_hyperparams_descr, get_hyperparams_descr
-from dataset_configs import get_config_for_winequality_dataset_tensorflow, get_layers_descr_as_list_tensorflow, \
+from lib_models.utils import plot_hyperparams_descr, get_hyperparams_descr
+from lib_models.dataset_configs import get_config_for_winequality_dataset_tensorflow, get_layers_descr_as_list_tensorflow, \
     get_config_for_airfoil_dataset_tensorflow
 
 
-def get_features_and_labels(dataset_split, target_col_name, verbose=False):
+def get_features_and_labels(dataset_split, target_col_name, normalize_labels=False, verbose=False):
     features = dataset_split.copy()
     labels = features.pop(target_col_name)
     features = features.to_numpy()  # features = np.array(features, names=True)
@@ -25,6 +25,16 @@ def get_features_and_labels(dataset_split, target_col_name, verbose=False):
         print('labels, head: ')
         print(labels[:5])
 
+    if normalize_labels:
+        from utils import CustomNormalizer
+        labels_normalizer = CustomNormalizer()
+        labels_normalizer.adapt(labels)
+        normalized_labels = labels_normalizer.normalize(labels)
+        features_normalizer = CustomNormalizer()
+        features_normalizer.adapt(features)
+        normalized_features = features_normalizer.normalize(features)
+        return normalized_features, normalized_labels
+
     return features, labels
 
 
@@ -33,8 +43,8 @@ def shuffle_pandas_dataframe(df):
     return df.sample(frac=fraction_of_rows)
 
 
-def get_dataset1(file_abs_path, batch_size, sep, dev_split_ratio=0.85, train_split_ratio=0.7,
-                 target_col_name=None, has_header_row=False, col_names=None, verbose=False):
+def get_dataset(file_abs_path, batch_size, sep, dev_split_ratio=0.85, train_split_ratio=0.7,
+                target_col_name=None, has_header_row=False, col_names=None, verbose=False):
     ds = pd.read_csv(file_abs_path, sep=sep, names=col_names, header=0)  # header=header, dtype=dtype1
 
     if has_header_row:
@@ -110,16 +120,20 @@ def create_and_compile_model(input_dim, num_hid_layers, units_per_layer, out_dim
 
 
 def fit_and_evaluate_model(model, train_features, train_labels, mini_batch_size, epochs_count=None,
-                           val_features=None, val_labels=None, early_stopping_callback=None):
+                           val_features=None, val_labels=None, early_stopping_callback=None, max_epochs=500):
     if early_stopping_callback is not None:
         print(early_stopping_callback)
         history = model.fit(train_features, train_labels, callbacks=[early_stopping_callback],
-                            epochs=1500,
+                            epochs=max_epochs,
                             validation_data=(val_features, val_labels),
                             batch_size=mini_batch_size, verbose=1)
     else:
-        history = model.fit(train_features, train_labels, validation_data=(val_features, val_labels),
-                            epochs=epochs_count, batch_size=mini_batch_size, verbose=0)
+        print('train features shape: ', train_features.shape, ' train labels shape: ', train_labels.shape,
+              ' val features shape: ', val_features.shape, ' val labels shape: ', val_labels.shape)
+        history = model.fit(train_features, train_labels,
+                            epochs=epochs_count,
+                            validation_data=(val_features, val_labels),
+                            batch_size=mini_batch_size, verbose=0)
 
     print(len(history.history['loss']), ' epochs done.')
 
@@ -211,8 +225,8 @@ def get_hyperparams_config_and_data():
         = get_config_for_airfoil_dataset_tensorflow()
 
     train_split, val_split, test_split, col_names \
-        = get_dataset1(file_abs_path, batch_size=mini_batch_size, sep=sep,  # dev_split_ratio=0.85, train_split_ratio=0.7
-                                    col_names=col_names, target_col_name=target_col_name, has_header_row=True)  #col_names=None
+        = get_dataset(file_abs_path, batch_size=mini_batch_size, sep=sep,  # dev_split_ratio=0.85, train_split_ratio=0.7
+                      col_names=col_names, target_col_name=target_col_name, has_header_row=True)  #col_names=None
     # nb, as a side effect, these convert from pandas dataframe to numpy ndarray
     print('getting training set features and labels:')
     train_features, train_labels = get_features_and_labels(train_split, target_col_name)
@@ -229,32 +243,35 @@ def get_hyperparams_config_and_data():
 
 
 def do_preprocessing(train_split, col_names, train_features, train_labels, NormalizationClass, verbose=False):
-    data_analysis(train_split, col_names)
-    # tf.keras.layers.Normalization(axis=-1)  # normalization layer
-    features_normalizer = NormalizationClass()
-    labels_normalizer = NormalizationClass(axis=None)
-    features_normalizer.adapt(np.array(train_features))
-    # nb: this does not actually does the normalization preprocessing, which is done in a NN layer
-    print(train_labels)
-    print(np.array(train_labels))
-    labels_normalizer.adapt(np.array(train_labels))
-    if verbose:
-        print('normalized.mean.numpy():')
-        print(features_normalizer.mean.numpy())
-        with np.printoptions(precision=2, suppress=True):
-            print('First example:', train_features[:1])
-            print('Normalized:', features_normalizer(train_features[:1]).numpy())
-    # train_features = normalize(train_features) this is done as a layer
-    # print('train_features after normalization:')
-    # print(train_features)
-
-    # training_ds = tf.data.Dataset.from_tensor_slices((train_features, train_labels))
-    # DATASET_SIZE = tf.data.experimental.cardinality(training_ds).numpy()
-    # training_batches = training_ds.shuffle(DATASET_SIZE).batch(mini_batch_size)
-
     # todo: linear base expansion (x^2) with numpy or pandas
+    data_analysis(train_split, col_names)
+    use_tf_normalization_layer = True
+    if use_tf_normalization_layer:
+        # tf.keras.layers.Normalization(axis=-1)  # normalization layer
+        features_normalizer = NormalizationClass()
+        labels_normalizer = NormalizationClass(axis=None)
+        features_normalizer.adapt(np.array(train_features))
+        # nb: this does not actually does the normalization preprocessing, which is done in a NN layer
+        # print(train_labels)
+        # print(np.array(train_labels))
+        labels_normalizer.adapt(np.array(train_labels))
+        if verbose:
+            print('normalized.mean.numpy():')
+            print(features_normalizer.mean.numpy())
+            with np.printoptions(precision=2, suppress=True):
+                print('First example:', train_features[:1])
+                print('Normalized:', features_normalizer(train_features[:1]).numpy())
+        # train_features = normalize(train_features) this is done as a layer
+        # print('train_features after normalization:')
+        # print(train_features)
 
-    return features_normalizer, labels_normalizer
+        # training_ds = tf.data.Dataset.from_tensor_slices((train_features, train_labels))
+        # DATASET_SIZE = tf.data.experimental.cardinality(training_ds).numpy()
+        # training_batches = training_ds.shuffle(DATASET_SIZE).batch(mini_batch_size)
+        return features_normalizer, labels_normalizer
+
+    else:
+        return None, None
 
 
 def main():
@@ -275,7 +292,7 @@ def main():
     learning_rate, adaptive_lr, train_split, val_split, test_split, col_names, \
     train_features, train_labels, val_features, val_labels, test_features, test_labels \
         = get_hyperparams_config_and_data()
-    features_normalizer, labels_normalizer\
+    features_normalizer, labels_normalizer \
         = do_preprocessing(train_split, col_names, train_features, train_labels, NormalizationClass)
 
     model = create_and_compile_model(input_dim, num_hid_layers, units_per_layer, out_dim,
@@ -290,8 +307,8 @@ def main():
                                                       mini_batch_size,
                                                       val_features=val_features, val_labels=val_labels,
                                                       early_stopping_callback=early_stopping_callback)
-    print('history.history[loss]')
-    print(history.history['loss'])
+    # print('history.history[loss]')
+    # print(history.history['loss'])
     plot_results(model, metrics_results, history, file_abs_path, activation_fun, mini_batch_size,
                  adaptive_lr, error_fn, l2_lambda, NormalizationClass, train_features, train_labels,
                  val_features, val_labels)
