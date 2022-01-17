@@ -35,6 +35,64 @@ def run_nn_only():
     print('final validation_error = {}'.format(test_net.validate_net()))
 
 
+def run_nn_only_classification():
+    root_dir = os.getcwd()
+    file_path = os.path.join(root_dir, '..\\datasplitting\\assets\\monk\\monks-1.train')
+    import pandas as pd
+    df = pd.read_csv(file_path, sep='\s')  #
+    df.columns = ['class_label', 'head_shape', 'body_shape', 'is_smiling', 'holding', 'jacket_color', 'has_tie', 'id']
+    df.drop(columns=['id'], inplace=True)
+    wanted_columns_order = ['head_shape', 'body_shape', 'is_smiling', 'holding', 'jacket_color', 'has_tie', 'class_label']
+    df = df.reindex(columns=wanted_columns_order)
+    categorical_data = np.array(df)
+    from one_hot_encoder import one_hot_encode_multiple_cols
+    data = one_hot_encode_multiple_cols(categorical_data, col_indexes_to_encode=[0,1,2,3,4,5],
+                                                   cols_to_not_change=[6])
+
+    train_ratio = 0.7
+    rng = default_rng()
+    rng.shuffle(data)
+    example_number = data.shape[0]
+
+    print('dataset head after shuffling: ')
+    print(data[:5])
+
+    net_shape = [17, 8, 1]
+    split_id = int(np.round(example_number * train_ratio))
+
+    test_net = NeuralNet('tanh', net_shape, eta=0.01, alpha=0.12, lamda=0.005, task='classification')
+
+    test_net.load_training(data[:split_id], 1, do_normalization=False)
+    test_net.load_validation(data[split_id:], 1)
+
+    '''
+    print('trainins set head, check if one hot features are normalized: ')
+    print(test_net.training_set[:5])
+    print('val set: ')
+    print(test_net.validation_set[:5])
+    print('shift_vector: ', test_net.shift_vector, ', scale_vector: ', test_net.scale_vector)
+
+    # denormalized one hot features:
+    test_net.training_set = (test_net.training_set * test_net.scale_vector) + (test_net.shift_vector)
+    test_net.validation_set = (test_net.validation_set * test_net.scale_vector) + (test_net.shift_vector)
+    test_net.training_set = np.rint(test_net.training_set)
+    test_net.validation_set = np.rint(test_net.validation_set)
+
+    print('trainins set head, check if one hot features are de-normalized: ')
+    print(test_net.training_set[:5])
+    print('val set: ')
+    print(test_net.validation_set[:5])
+    '''
+
+    start_time = datetime.now()
+    print('net initialized at {}'.format(start_time))
+    print('initial validation_error = {}'.format(test_net.validate_net()))
+    test_net.batch_training()
+    end_time = datetime.now()
+    print('training completed at {} ({} elapsed)'.format(end_time, end_time - start_time))
+    print('final validation_error = {}'.format(test_net.validate_net()))
+
+
 def run_nn_and_tf():
     # trains basic neural network on the airfoil dataset
     print('Getting dataset from file.. {}'.format(datetime.now()))
@@ -120,4 +178,5 @@ def run_nn_and_tf():
 
 if __name__ == '__main__':
     # todo: collect training history to plot learning curve
-    run_nn_and_tf()
+    # run_nn_and_tf()
+    run_nn_only_classification()

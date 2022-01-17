@@ -219,7 +219,7 @@ class NeuralNet:
         return net
 
     # stores training set inside of neural net
-    def load_training(self, training_set, out=1):
+    def load_training(self, training_set, out=1, do_normalization=True):
 
         train_examples = training_set.shape[0]
         self.eta /= train_examples
@@ -235,11 +235,15 @@ class NeuralNet:
         # calculates average and standard deviation for each input and output variable over the training set
         # these are then used to facilitate training by normalizing each variable so that it has 0 average and std 1
 
-        self.shift_vector = np.average(training_set, axis=0)
-        self.scale_vector = np.std(training_set, axis=0)
+        if do_normalization:
+            self.shift_vector = np.average(training_set, axis=0)
+            self.scale_vector = np.std(training_set, axis=0)
+        else:
+            columns_count = self.fan_in + self.fan_out
+            self.shift_vector = np.zeros((columns_count,), dtype=int)
+            self.scale_vector = np.full((columns_count,), 1, dtype=int)
 
         # stores normalized training set
-
         self.training_set = (training_set - self.shift_vector)/self.scale_vector
 
         # applies normalization to validation set if self.load_validation() was called before self.load_training()
