@@ -9,6 +9,13 @@ import os
 # Activation functions, each followed by their respective derivatives;
 # derivatives are expressed as function of the resulting outputs to simplify computations
 
+
+def threshold_basic(x):  # nb: the derivative of this is not used because it's zero and we need a smoothing fn for classification
+    if x >= 0.5:
+        return 1
+    else:
+        return 0
+
 def linear(x):
     return x
 
@@ -107,14 +114,22 @@ class Layer:
         if task == 'regression':
             self.activation = np.vectorize(linear)
             self.derivative = np.vectorize(linearprime)
+        if task == 'classification':
+            self.activation = np.vectorize(threshold_basic)
+            self.derivative = np.vectorize(linearprime)
+            # (todo check this is correct) in classification, we optimize the loss as MSE because it is differentiable,
+            #   so we derivate linear
 
     # evaluate(): evaluates input using current weights and stores input, net and output as class attributes
     # for later training
-    def evaluate(self, entry):
+    def evaluate(self, entry, use_smoothing_fn=False):
         self.latest_in[:-1] = entry
         self.latest_net = np.matmul(self.weights, self.latest_in)
-        self.latest_out = self.activation(self.latest_net)
-        return self.latest_out
+        if use_smoothing_fn:
+            return self.latest_net  # nb: no activation function, in classification error fn uses w*x not h(x)
+        else:
+            self.latest_out = self.activation(self.latest_net)
+            return self.latest_out
 
     # calc_local_gradient: calculates the layer's local gradient for the latest output according to
     # the back-propagating error signal from the next unit, calculates actual gradient for weights update,
@@ -169,6 +184,7 @@ class NeuralNet:
                 lay = Layer(units[i], units[i+1], activation)
                 self.layers.append(lay)
 
+            self.task = task
             self.layers[-1].switch_role(task)
 
         self.eta = eta*mb  # learning rate
@@ -285,7 +301,6 @@ class NeuralNet:
         rmtree(latest_dir, ignore_errors=True)
         os.makedirs(cur_dir, exist_ok=True)
 
-
         for i, layer in enumerate(self.layers):
             weight_path = os.path.join(cur_dir, 'layer_{}_weights.csv'.format(i))
             delta_path = os.path.join(cur_dir, 'layer_{}_deltas.csv'.format(i))
@@ -298,27 +313,42 @@ class NeuralNet:
     # internally-stored data such as training and validation sets; for external data such as assessment sets or
     # deployment data use self.evaluate()
 
-    def internal_evaluate(self, entry):
+    def internal_evaluate(self, entry, use_smoothing_fn=False):
 
         for lay in self.layers:
-            entry = lay.evaluate(entry)
+            is_last_layer = lay == self.layers[-1]
+            if not is_last_layer:
+                entry = lay.evaluate(entry)
+            else:
+                if not use_smoothing_fn:
+                    print('using activation/threshold fun in last layer')
+                entry = lay.evaluate(entry, use_smoothing_fn=use_smoothing_fn)
 
         return entry
 
     # evaluate: evaluates non-normalized (original format) inputs and returns non-normalized outputs
     def evaluate(self, entry):
-
+        print('using evaluate functions with normalization and denormalization')
         entry = (entry - self.shift_vector[:self.fan_in])/self.scale_vector[:self.fan_in]
+
         output = self.internal_evaluate(entry)
-        output = output*self.scale_vector[self.fan_in:] + self.shift_vector[self.fan_in:]
+
+        # nb: index [self.fan_in:] is from after the fan_in count, so it's the last fan_out columns
+        # was self.scale_vector[self.fan_in:] + self.shift_vector[self.fan_in:]
+        # nb [-N:] means the last N elements
+        output = output*self.scale_vector[-self.fan_out:] + self.shift_vector[-self.fan_out:]
 
         return output
 
     # pattern_update: evaluate input using current weights, then back-propagates error through the entire network
     def pattern_update(self, entry, label):
 
-        output = self.internal_evaluate(entry)
+        use_smoothing_fn = self.task == 'classification'
+        output = self.internal_evaluate(entry, use_smoothing_fn=use_smoothing_fn)
         error_signal = output - label
+        # print(f'pattern update, predicted: {output} - label: {label} = error: {error_signal}')
+
+        # print(label.dtype, output.dtype, error_signal.dtype)
         if type(error_signal) is np.ndarray:
             self.epoch_SE += (error_signal**2).sum()
 
@@ -387,6 +417,13 @@ class NeuralNet:
                     break
 
             if stopping == 'MSE':
+                # todo: alternative stopping criteria:
+                #  keep track of epoch (epoch num, MSE value, and all net weights) with min MSE/error
+                # if min epoch is more then x (x = patience) epochs ago, stop
+                # todo: with stop, also restore the net weights of the min epoch
+                # todo: additional stopping criteria: epoch might still improving, but if improvement is too
+                #  small for x (x = patience) epochs, stop; how to do it: save the best (max)
+                #  MSE improvement of last x epochs, if smaller than threshold, stop
                 relative_change = (train_errors[epoch] - train_errors[epoch-1])/train_errors[epoch-1]
                 if relative_change < threshold:
                     break
@@ -408,16 +445,20 @@ class NeuralNet:
 
     # calculates MSE on the validation set with current weights
     def validate_net(self):
+        # todo: add metrics (accuracy) for classification
 
         error = 0
         for example in self.validation_set:
             x = example[:self.fan_in]
             y = example[-self.fan_out:]
+            use_smoothing_fn = self.task == 'classification'
+            predicted_y = self.internal_evaluate(x, use_smoothing_fn=use_smoothing_fn)
+            # print('predicted y: ', predicted_y, ' actual y: ', y)
             if type(y) is np.ndarray:
-                error += ((y - self.internal_evaluate(x))**2).sum()
-
+                # todo pass error fn (MSE, MAE, ..) as parameter like for activation functions
+                error += ((y - predicted_y)**2).sum()
             else:
-                error += (y - self.internal_evaluate(x))**2
+                error += (y - predicted_y)**2
 
         error /= self.validation_set.shape[0]
         return error

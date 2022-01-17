@@ -87,10 +87,13 @@ def run_nn_only_classification():
     start_time = datetime.now()
     print('net initialized at {}'.format(start_time))
     print('initial validation_error = {}'.format(test_net.validate_net()))
-    test_net.batch_training()
+    test_net.batch_training(threshold=600, max_epochs=500)
     end_time = datetime.now()
     print('training completed at {} ({} elapsed)'.format(end_time, end_time - start_time))
-    print('final validation_error = {}'.format(test_net.validate_net()))
+    final_validation_error = test_net.validate_net()
+    print('final validation_error = {}'.format(final_validation_error))
+
+    # todo: plot actual vs predicted (as accuracy and as MSE smoothing function)
 
 
 def run_nn_and_tf():
