@@ -2,8 +2,6 @@ import numpy as np
 
 
 def one_hot_encode(arr):
-    import numpy as np
-    # a = np.array([1, 0, 3])
     b = np.zeros((arr.size, arr.max() + 1))
     b[np.arange(arr.size), arr] = 1
 
