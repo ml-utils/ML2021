@@ -320,8 +320,8 @@ class NeuralNet:
             if not is_last_layer:
                 entry = lay.evaluate(entry)
             else:
-                if not use_smoothing_fn:
-                    print('using activation/threshold fun in last layer')
+                # if not use_smoothing_fn:
+                #   print('using activation/threshold fun in last layer')
                 entry = lay.evaluate(entry, use_smoothing_fn=use_smoothing_fn)
 
         return entry
@@ -406,10 +406,10 @@ class NeuralNet:
                 self.update_weights()
 
             train_errors[epoch] = self.epoch_SE/example_number
-            validate_errors[epoch] = self.validate_net()
+            validate_errors[epoch], accuracy = self.validate_net()
             if not epoch % 100: # prints training status on console every 100 epochs
                 self.savestate(epoch)
-                print('epoch {} done (error = {})'.format(epoch, validate_errors[epoch]))
+                print('epoch {} done (error = {}, accuracy = {})'.format(epoch, validate_errors[epoch], accuracy))
 
             # check for stopping conditions
             if stopping == 'epochs':
@@ -447,21 +447,42 @@ class NeuralNet:
     def validate_net(self):
         # todo: add metrics (accuracy) for classification
 
-        error = 0
+        error_smooth = 0
+        misclassified_count = 0
+        total = 0
+        correct = 0
+        accu = None
         for example in self.validation_set:
             x = example[:self.fan_in]
             y = example[-self.fan_out:]
-            use_smoothing_fn = self.task == 'classification'
-            predicted_y = self.internal_evaluate(x, use_smoothing_fn=use_smoothing_fn)
-            # print('predicted y: ', predicted_y, ' actual y: ', y)
+
+            if self.task == 'regression':
+                predicted_y = self.internal_evaluate(x)
+            if self.task == 'classification':
+                predicted_y = self.internal_evaluate(x, use_smoothing_fn=True)
+                thresholded_predicted_y = self.internal_evaluate(x, use_smoothing_fn=False)
+            # print(f'predicted y:  {predicted_y}, thresholded_predicted_y: {thresholded_predicted_y}, actual y: {y}')
+
             if type(y) is np.ndarray:
                 # todo pass error fn (MSE, MAE, ..) as parameter like for activation functions
-                error += ((y - predicted_y)**2).sum()
+                error_smooth += ((y - predicted_y)**2).sum()
             else:
-                error += (y - predicted_y)**2
+                error_smooth += (y - predicted_y)**2
+            error_smooth /= self.validation_set.shape[0]
 
-        error /= self.validation_set.shape[0]
-        return error
+            if self.task == 'classification':
+                # _, predicted = outputs.max(1)
+                total += 1
+                correct += np.sum(thresholded_predicted_y == y)
+                # print(f'thresholded_predicted_y: {thresholded_predicted_y}, y: {y}')
+
+        if self.task == 'classification':
+            print(f'correct: {correct}, total: {total}')
+            accu = 100. * correct / total  # accuracy scores for classification tasks
+        return error_smooth, accu
+
+
+
 
 if __name__ == '__main__':
     # trains basic neural network on the airfoil dataset

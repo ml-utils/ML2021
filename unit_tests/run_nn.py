@@ -90,8 +90,9 @@ def run_nn_only_classification():
     test_net.batch_training(threshold=600, max_epochs=500)
     end_time = datetime.now()
     print('training completed at {} ({} elapsed)'.format(end_time, end_time - start_time))
-    final_validation_error = test_net.validate_net()
+    final_validation_error, accuracy = test_net.validate_net()
     print('final validation_error = {}'.format(final_validation_error))
+    print('final validation accuracy = {}'.format(accuracy))
 
     # todo: plot actual vs predicted (as accuracy and as MSE smoothing function)
 
