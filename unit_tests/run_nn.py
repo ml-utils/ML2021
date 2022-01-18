@@ -106,7 +106,8 @@ def run_nn_only_classification():
     start_time = datetime.now()
     print('net initialized at {}'.format(start_time))
     print('initial validation_error = {}'.format(test_net.validate_net()))
-    test_net.batch_training(threshold=500, max_epochs=500, verbose=False, hyperparams_for_plot=hyperparams_descr)
+    test_net.batch_training(threshold=0.001, max_epochs=500, stopping='MSE2_val', patience=50,
+                            verbose=False, hyperparams_for_plot=hyperparams_descr)
     end_time = datetime.now()
     print('training completed at {} ({} elapsed)'.format(end_time, end_time - start_time))
     final_validation_error, accuracy = test_net.validate_net()

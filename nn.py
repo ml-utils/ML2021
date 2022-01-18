@@ -213,6 +213,9 @@ class NeuralNet:
             self.task = task
             self.layers[-1].switch_role_to_out_layer(task)
 
+        self.layers_weights_best_epoch = []
+        self.save_layers_weights_best_epoch()
+
         self.eta = eta*mb  # learning rate
         self.alpha = alpha*mb  # momentum parameter
         self.lamda = lamda*mb  # regularization parameter
@@ -403,8 +406,17 @@ class NeuralNet:
             batch = self.training_set[start_id:start_id+self.mb]
             yield batch
 
+    def save_layers_weights_best_epoch(self):
+        self.layers_weights_best_epoch = []
+        for layer in self.layers:
+            self.layers_weights_best_epoch.append(layer.weights.copy())
+
+    def restore_layers_weights_best_epoch(self):
+        for idx, layer in enumerate(self.layers):
+            layer.weights = self.layers_weights_best_epoch[idx]
+
     # trains neural net for fixed number of epochs using mini-batch method; also saves MSE for each epoch on file
-    def batch_training(self, stopping='epochs', threshold=300, max_epochs=500,
+    def batch_training(self, stopping='epochs', patience=50, threshold=0.01, max_epochs=500,
                        verbose=False, hyperparams_for_plot=''):  # TODO: implement actual stopping conditions
 
         # stopping (string):        name of stopping condition to be used during training
@@ -414,10 +426,12 @@ class NeuralNet:
 
         # list of implemented stopping conditions:
 
-        # 'epochs': stop training after *threshold* number of epochs
-        #           if epoch = threshold: break
-        # 'MSE':    stop training once the relative change in the training error drops below *threshold*
+        # 'epochs': stop training after *max_epochs* number of epochs
+        #           if epoch = max_epochs: break
+        # 'MSE1_tr':    stop training once the relative change in the training error drops below *threshold*
         #           if (error[epoch] - error[epoch-1])/error[epoch] < threshold: break
+        # 'MSE2_val':    stop training if the epoch with the best validation error is more than *patience* epochs ago,
+        #           or after at least *patience* epochs therelative change in the validation error drops below *threshold*
 
         train_errors = np.empty(max_epochs)     # support array to store training errors
         validate_errors = np.empty(max_epochs)  # support array to store validation errors
@@ -425,6 +439,7 @@ class NeuralNet:
 
         # number of examples used in each epoch (lower than total number of TRAIN examples, see batch_split()
         example_number = self.training_set.shape[0] - self.training_set.shape[0] % self.mb
+        best_epoch_for_stopping = 0
         for epoch in range(max_epochs):
             self.epoch_SE = 0
             batch_rng.shuffle(self.training_set) # shuffle training set
@@ -451,9 +466,14 @@ class NeuralNet:
                 self.update_weights()
 
             train_errors[epoch] = self.epoch_SE/example_number
+            validate_errors[epoch], accuracy = self.validate_net(epoch)
+
+            if validate_errors[epoch] < validate_errors[best_epoch_for_stopping]:
+                best_epoch_for_stopping = epoch
+                self.save_layers_weights_best_epoch()
+
             if verbose:
                 print('epoch train error: ', train_errors[epoch])
-            validate_errors[epoch], accuracy = self.validate_net(epoch)
             if not epoch % 100: # prints training status on console every 100 epochs
                 self.savestate(epoch)
                 print(f'epoch {epoch} done (tr error = {train_errors[epoch]}, tr patterns: {example_number}, '
@@ -462,21 +482,9 @@ class NeuralNet:
                       f'accuracy = {accuracy})')
 
             # check for stopping conditions
-            if stopping == 'epochs':
-                if epoch == threshold:
-                    break
-
-            if stopping == 'MSE':
-                # todo: alternative stopping criteria:
-                #  keep track of epoch (epoch num, MSE value, and all net weights) with min MSE/error
-                # if min epoch is more then x (x = patience) epochs ago, stop
-                # todo: with stop, also restore the net weights of the min epoch
-                # todo: additional stopping criteria: epoch might still improving, but if improvement is too
-                #  small for x (x = patience) epochs, stop; how to do it: save the best (max)
-                #  MSE improvement of last x epochs, if smaller than threshold, stop
-                relative_change = (train_errors[epoch] - train_errors[epoch-1])/train_errors[epoch-1]
-                if relative_change < threshold:
-                    break
+            if self.should_stop_training(stopping, threshold, max_epochs, epoch, best_epoch_for_stopping, patience,
+                                         validate_errors, train_errors):
+                break
 
         train_error_path = os.path.join(self.net_dir, 'training_errors.csv')
         np.savetxt(train_error_path, train_errors[:epoch+1], delimiter=',')  # saves history of training errors on file
@@ -496,6 +504,32 @@ class NeuralNet:
 
         error_graph_path = os.path.join(self.net_dir, 'errors.png')
         plt.savefig(error_graph_path)
+
+    def should_stop_training(self, stopping, threshold, max_epochs, epoch, best_epoch_for_stopping, patience,
+                             validate_errors, train_errors):
+        if stopping == 'epochs':
+            if epoch == max_epochs:
+                return True
+        elif stopping == 'MSE2_val':
+            if epoch - best_epoch_for_stopping > patience:
+                self.restore_layers_weights_best_epoch()
+                print(f'Stopping: at epoch {epoch}, '
+                      f'the epoch with the best validation error is n. {best_epoch_for_stopping}, '
+                      f'more than {patience} epochs ago.')
+                return True
+            else:
+                if epoch > patience:
+                    relative_change = abs(validate_errors[epoch] - validate_errors[epoch - 1]) / validate_errors[epoch - 1]
+                    if relative_change < threshold:
+                        self.restore_layers_weights_best_epoch()
+                        print(f'Stopping: at epoch {epoch}, '
+                              f'relative_change={relative_change} less than {threshold}.')
+                        return True
+        elif stopping == 'MSE1_tr':
+            relative_change = (train_errors[epoch] - train_errors[epoch - 1]) / train_errors[epoch - 1]
+            if relative_change < threshold:
+                return True
+        return False
 
     # calculates MSE on the validation set with current weights
     def validate_net(self, epoch=None):
