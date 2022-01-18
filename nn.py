@@ -87,7 +87,7 @@ class Layer:
         self.activation = np.vectorize(self.activation)
         self.derivative = np.vectorize(self.derivative)
 
-        self.role = 'hidden'  # layer is initialized as hidden unit by default, use switch_role() to change to output
+        self.role = 'hidden'  # initialized as hidden layer by default, for output layer use switch_role_to_out_layer()
         self.latest_out = np.empty(fan_out)
         self.latest_net = np.empty(fan_out)
         self.latest_in = np.empty(fan_in + 1)
@@ -108,31 +108,31 @@ class Layer:
 
         return layer
 
-    # switch_role() sets role of layer as output unit
-    def switch_role(self, task):
+    def switch_role_to_out_layer(self, task):
         self.role = 'output'
         if task == 'regression':
             self.activation = np.vectorize(linear)
             self.derivative = np.vectorize(linearprime)
         if task == 'classification':
-            self.activation = np.vectorize(threshold_basic)
+            self.activation = np.vectorize(threshold_basic)  # threshold_basic
             self.derivative = np.vectorize(linearprime)
             # (todo check this is correct) in classification, we optimize the loss as MSE because it is differentiable,
             #   so we derivate linear
 
     # evaluate(): evaluates input using current weights and stores input, net and output as class attributes
     # for later training
-    def evaluate(self, entry, use_smoothing_fn=False):
+    def evaluate(self, entry, use_netx_instead_of_hx=False):
         self.latest_in[:-1] = entry
         self.latest_net = np.matmul(self.weights, self.latest_in)
-        if use_smoothing_fn:
+        if use_netx_instead_of_hx:
             return self.latest_net  # nb: no activation function, in classification error fn uses w*x not h(x)
         else:
             self.latest_out = self.activation(self.latest_net)
             return self.latest_out
 
     # calc_local_gradient: calculates the layer's local gradient for the latest output according to
-    # the back-propagating error signal from the next unit, calculates actual gradient for weights update,
+    # the back-propagating error signal from the next unit (? unit = neuron, layer, or sample?),
+    # calculates actual gradient for weights update,
     # then returns error signal for the previous unit.
     def calc_local_gradient(self, error_signal):
         # if role == output unit:
@@ -143,17 +143,40 @@ class Layer:
         # if role == hidden unit k:
         # error_signal = sum_(j=1)^fan_out w_lj^(k+1)*delta_l
 
+        # todo, check: delta weights should be (negative) derivative (partial, for each w) of E(w)
         p_gradient = error_signal*self.derivative(self.latest_out)
+        # we sum local delta weigths for each sample (calc_local_gradient is called once per sample, per layer)
+        # nb: calc_local_gradient is being called for a specific layer
         self.delta_weights = self.delta_weights - np.outer(p_gradient, self.latest_in)
         output_error_signal = np.matmul(self.weights.transpose(), p_gradient)
 
-        return output_error_signal[:-1]
+        '''
+        if self.latest_out.size <= 2:
+            print(f'self.latest_out: {self.latest_out}, der(latest_out): {self.derivative(self.latest_out)}, '
+                  f'error_signal: {error_signal}, p_gradient: {p_gradient}')
+        else:
+            print(f'self.latest_out.shape: {self.latest_out.shape}, '
+                  f'der(latest_out).shape: {self.derivative(self.latest_out).shape}, '
+                  f'error_signal.shape: {error_signal.shape}, p_gradient.shape: {p_gradient.shape}')
+        print(f'self.delta_weights.shape: {self.delta_weights.shape}')  # = (layer_out_dim, layer_nodes + 1_bias)
+        # print(self.delta_weights)
+        '''
+        output_error_signal_up_to_index_1_from_the_end = output_error_signal[:-1]
+        #print(f'output_error_signal.shape: {output_error_signal.shape}, '
+        #      f'up_to_index_1_from_the_end.shape: {output_error_signal_up_to_index_1_from_the_end.shape}')
+        # todo, explain: are we excluding
+        # shape is (layer_size + 1_bias,)
+        return output_error_signal_up_to_index_1_from_the_end
 
     # update_weights: update weights using both momentum and L2 regularization, updates delta_weights_old
     # for momentum and zeros delta_weights for successive training
     def update_weights(self, eta, alpha, lamda):
 
         self.delta_weights_old = eta*self.delta_weights + alpha*self.delta_weights_old
+
+        # nb: lamda*self.weights, regularization component, is a L.. regularization
+        # regularization formula (already derivative): -2*lambda*w (from slide 69 of lecture 03 linear knn)
+        # so just lamda*self.weights seems to be missing a 2*
         self.weights += self.delta_weights_old - lamda*self.weights
         self.delta_weights = np.zeros(self.delta_weights.shape)
 
@@ -161,7 +184,7 @@ class Layer:
 class NeuralNet:
 
     def __init__(self, activation, units=(2, 2), eta=0.1, alpha=0.1, lamda=0.01, mb=20,
-                 task='classification', placeholder=False, **kwargs):
+                 task='classification', placeholder=False, verbose=False, **kwargs):
 
         # activation (string): name of activation function used
         #                      (TODO: add way to use different functions for different layers)
@@ -172,6 +195,9 @@ class NeuralNet:
         # mb (int): number of patterns in each mini-batch
         # task (string): task the NN is meant to perform (classification or regression)
         # **kwargs: idk it'll be useful for something
+
+        if verbose:
+            print('creating NN, units: ', units)
 
         self.layers = []
 
@@ -185,7 +211,7 @@ class NeuralNet:
                 self.layers.append(lay)
 
             self.task = task
-            self.layers[-1].switch_role(task)
+            self.layers[-1].switch_role_to_out_layer(task)
 
         self.eta = eta*mb  # learning rate
         self.alpha = alpha*mb  # momentum parameter
@@ -228,7 +254,7 @@ class NeuralNet:
             lay = Layer.load_file(path, i, activation)
             net.layers.append(lay)
 
-        net.layers[-1].switch_role(task)
+        net.layers[-1].switch_role_to_out_layer(task)
         net.fan_in = net.layers[0].fan_in
         net.fan_out = net.layers[-1].fan_out
 
@@ -313,17 +339,16 @@ class NeuralNet:
     # internally-stored data such as training and validation sets; for external data such as assessment sets or
     # deployment data use self.evaluate()
 
-    def internal_evaluate(self, entry, use_smoothing_fn=False):
+    def internal_evaluate(self, entry, use_netx_instead_of_hx=False):
 
         for lay in self.layers:
             is_last_layer = lay == self.layers[-1]
             if not is_last_layer:
                 entry = lay.evaluate(entry)
             else:
-                # if not use_smoothing_fn:
+                # if not use_netx_instead_of_hx:
                 #   print('using activation/threshold fun in last layer')
-                entry = lay.evaluate(entry, use_smoothing_fn=use_smoothing_fn)
-
+                entry = lay.evaluate(entry, use_netx_instead_of_hx=use_netx_instead_of_hx)
         return entry
 
     # evaluate: evaluates non-normalized (original format) inputs and returns non-normalized outputs
@@ -336,27 +361,33 @@ class NeuralNet:
         # nb: index [self.fan_in:] is from after the fan_in count, so it's the last fan_out columns
         # was self.scale_vector[self.fan_in:] + self.shift_vector[self.fan_in:]
         # nb [-N:] means the last N elements
+        # output = output * self.scale_vector[self.fan_in:] + self.shift_vector[self.fan_in:]
         output = output*self.scale_vector[-self.fan_out:] + self.shift_vector[-self.fan_out:]
-
         return output
 
     # pattern_update: evaluate input using current weights, then back-propagates error through the entire network
-    def pattern_update(self, entry, label):
-
-        use_smoothing_fn = self.task == 'classification'
-        output = self.internal_evaluate(entry, use_smoothing_fn=use_smoothing_fn)
+    def pattern_update(self, entry, label, verbose=False):
+        use_netx_instead_of_hx = self.task == 'classification'  #
+        output = self.internal_evaluate(entry, use_netx_instead_of_hx=use_netx_instead_of_hx)
         error_signal = output - label
-        # print(f'pattern update, predicted: {output} - label: {label} = error: {error_signal}')
-
-        # print(label.dtype, output.dtype, error_signal.dtype)
+        # print(f'{round(np.asscalar(output), 2)}; ', end=' ')
         if type(error_signal) is np.ndarray:
-            self.epoch_SE += (error_signal**2).sum()
-
+            entry_SE = (error_signal**2).sum()
         else:
-            self.epoch_SE += error_signal**2
+            entry_SE = error_signal**2
 
+        self.epoch_SE += entry_SE
+        if verbose == 2:
+            print(f'pattern update, predicted: {output} - label: {label} = error: {error_signal}, '
+                  f'entry_SE_ {entry_SE}, updated epoch_SE: {self.epoch_SE}')
+
+        # nb this is done for each pattern in a batch
+        # todo, check: shouldn't we also propagate the L2 term (so the loss, not just the error)?
         for i, layer in reversed(list(enumerate(self.layers))):
+            # print('calc_local_gradient layer ', i, ':')
             error_signal = layer.calc_local_gradient(error_signal)
+
+        # todo, check: the final error signal is not returned here, so what's the point?
 
     # update weights using previously-calculated weight deltas
     def update_weights(self):
@@ -373,7 +404,8 @@ class NeuralNet:
             yield batch
 
     # trains neural net for fixed number of epochs using mini-batch method; also saves MSE for each epoch on file
-    def batch_training(self, stopping='epochs', threshold=300, max_epochs=500): #TODO: implement actual stopping conditions
+    def batch_training(self, stopping='epochs', threshold=300, max_epochs=500,
+                       verbose=False, hyperparams_for_plot=''):  # TODO: implement actual stopping conditions
 
         # stopping (string):        name of stopping condition to be used during training
         # threshold (int or float): numerical threshold at which to stop training;
@@ -396,20 +428,38 @@ class NeuralNet:
         for epoch in range(max_epochs):
             self.epoch_SE = 0
             batch_rng.shuffle(self.training_set) # shuffle training set
+
+            # Notes from slides:
+            # delta_W = - (partial derivative E(patterns) over W)
+            # = - sum for each pattern ( part.der. of E(pattern) over W ) =def - sum for each pattern ("delta_p_W")
+            # for a particular w_tu, and pattern p: delta_p_wtu = - part.der of E(p) over w_tu =
+
+            actual_used_tr_patterms = 0
             for batch in self.batch_split():
 
                 for example in batch:
+                    actual_used_tr_patterms += 1
                     x = example[:self.fan_in]
                     y = example[-self.fan_out:]
+
+                    # delta_p_wtu = - part.der of E(p) over w_tu =
+                    # = - (part.der of E(p) over net_t) * (part.der of net_t over w_tu)
+                    # = delta_t * output_u
+                    # out_u = (part.der of Sum_over_j
                     self.pattern_update(x, y)
 
                 self.update_weights()
 
             train_errors[epoch] = self.epoch_SE/example_number
-            validate_errors[epoch], accuracy = self.validate_net()
+            if verbose:
+                print('epoch train error: ', train_errors[epoch])
+            validate_errors[epoch], accuracy = self.validate_net(epoch)
             if not epoch % 100: # prints training status on console every 100 epochs
                 self.savestate(epoch)
-                print('epoch {} done (error = {}, accuracy = {})'.format(epoch, validate_errors[epoch], accuracy))
+                print(f'epoch {epoch} done (tr error = {train_errors[epoch]}, tr patterns: {example_number}, '
+                      f' actual_used_tr_patterms: {actual_used_tr_patterms}, '
+                      f'val error = {validate_errors[epoch]}, val patterns: {self.validation_set.shape[0]}, '
+                      f'accuracy = {accuracy})')
 
             # check for stopping conditions
             if stopping == 'epochs':
@@ -434,24 +484,29 @@ class NeuralNet:
         validate_error_path = os.path.join(self.net_dir, 'validation_errors.csv')
         np.savetxt(validate_error_path, validate_errors[:epoch+1], delimiter=',')  # saves history of training errors on file
 
-        plt.plot(validate_errors[:epoch+1], label='validation errors')
-        plt.plot(train_errors[:epoch+1], label='training errors')
+        import matplotlib.patches as mpatches
+        f, ax = plt.subplots(1)
+        ax.plot(validate_errors[:epoch+1], label='validation errors')
+        ax.plot(train_errors[:epoch+1], label='training errors')
         plt.xlabel('epoch')
         plt.ylabel('MSE')
-        plt.legend()
+        handles, labels = ax.get_legend_handles_labels()
+        handles.append(mpatches.Patch(color='none', label=hyperparams_for_plot))
+        ax.legend(handles=handles)
 
         error_graph_path = os.path.join(self.net_dir, 'errors.png')
         plt.savefig(error_graph_path)
 
     # calculates MSE on the validation set with current weights
-    def validate_net(self):
+    def validate_net(self, epoch=None):
         # todo: add metrics (accuracy) for classification
 
         error_smooth = 0
-        misclassified_count = 0
         total = 0
         correct = 0
         accu = None
+
+        validation_predicted_outs = []
         for example in self.validation_set:
             x = example[:self.fan_in]
             y = example[-self.fan_out:]
@@ -459,29 +514,29 @@ class NeuralNet:
             if self.task == 'regression':
                 predicted_y = self.internal_evaluate(x)
             if self.task == 'classification':
-                predicted_y = self.internal_evaluate(x, use_smoothing_fn=True)
-                thresholded_predicted_y = self.internal_evaluate(x, use_smoothing_fn=False)
+                predicted_y = self.internal_evaluate(x, use_netx_instead_of_hx=True)
+                discretized_predicted_y = self.internal_evaluate(x, use_netx_instead_of_hx=False)
             # print(f'predicted y:  {predicted_y}, thresholded_predicted_y: {thresholded_predicted_y}, actual y: {y}')
-
+            validation_predicted_outs.append(np.asscalar(predicted_y))
             if type(y) is np.ndarray:
                 # todo pass error fn (MSE, MAE, ..) as parameter like for activation functions
                 error_smooth += ((y - predicted_y)**2).sum()
             else:
                 error_smooth += (y - predicted_y)**2
-            error_smooth /= self.validation_set.shape[0]
 
             if self.task == 'classification':
                 # _, predicted = outputs.max(1)
                 total += 1
-                correct += np.sum(thresholded_predicted_y == y)
+                correct += np.sum(discretized_predicted_y == y)
                 # print(f'thresholded_predicted_y: {thresholded_predicted_y}, y: {y}')
 
         if self.task == 'classification':
-            print(f'correct: {correct}, total: {total}')
             accu = 100. * correct / total  # accuracy scores for classification tasks
+            # if isinstance(epoch, int) and not epoch % 100:  # prints every 100 epochs
+                # print(f'correct: {correct}, total: {total}')
+                # print(f'val predicted: {validation_predicted_outs}')
+        error_smooth /= self.validation_set.shape[0]
         return error_smooth, accu
-
-
 
 
 if __name__ == '__main__':

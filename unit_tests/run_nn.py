@@ -1,11 +1,16 @@
-from nn import NeuralNet
-import numpy as np
-from time import sleep
-import matplotlib.pyplot as plt
-from numpy.random import default_rng
-from datetime import datetime
-from shutil import rmtree, copytree
+# Standard library imports
 import os
+from time import sleep
+from datetime import datetime
+import matplotlib.pyplot as plt
+from shutil import rmtree, copytree
+
+# Third party imports
+import numpy as np
+from numpy.random import default_rng
+
+# Local application imports
+from nn import NeuralNet
 
 
 def run_nn_only():
@@ -37,7 +42,8 @@ def run_nn_only():
 
 def run_nn_only_classification():
     root_dir = os.getcwd()
-    file_path = os.path.join(root_dir, '..\\datasplitting\\assets\\monk\\monks-1.train')
+    filename = 'monks-1.train'
+    file_path = os.path.join(root_dir, '..\\datasplitting\\assets\\monk\\', filename)
     import pandas as pd
     df = pd.read_csv(file_path, sep='\s')  #
     df.columns = ['class_label', 'head_shape', 'body_shape', 'is_smiling', 'holding', 'jacket_color', 'has_tie', 'id']
@@ -48,6 +54,9 @@ def run_nn_only_classification():
     from one_hot_encoder import one_hot_encode_multiple_cols
     data = one_hot_encode_multiple_cols(categorical_data, col_indexes_to_encode=[0,1,2,3,4,5],
                                                    cols_to_not_change=[6])
+    # import seaborn as sns
+    # sns.pairplot(pd.DataFrame(data), diag_kind='kde')
+    # plt.show()
 
     train_ratio = 0.7
     rng = default_rng()
@@ -56,11 +65,17 @@ def run_nn_only_classification():
 
     print('dataset head after shuffling: ')
     print(data[:5])
-
-    net_shape = [17, 8, 1]
+    task = 'classification'
+    activation = 'tanh'  # 'sigmoid' # 'tanh'
+    net_shape = [17, 2, 1]
+    mini_batch_size = 20
+    lr = 0.01
+    alpha_momentum = 0.12
     split_id = int(np.round(example_number * train_ratio))
-
-    test_net = NeuralNet('tanh', net_shape, eta=0.01, alpha=0.12, lamda=0.005, task='classification')
+    print(f'doing {split_id} samples for training, and {example_number - split_id} for validation')
+    lambda_reg = 0  # 0.005
+    test_net = NeuralNet(activation, net_shape, eta=lr, alpha=alpha_momentum, lamda=lambda_reg, mb=mini_batch_size,
+                         task=task, verbose=True)
 
     test_net.load_training(data[:split_id], 1, do_normalization=False)
     test_net.load_validation(data[split_id:], 1)
@@ -83,16 +98,20 @@ def run_nn_only_classification():
     print('val set: ')
     print(test_net.validation_set[:5])
     '''
+    from lib_models.utils import get_hyperparams_descr
+    hyperparams_descr = get_hyperparams_descr(filename, str(net_shape), activation, mini_batch_size,
+                                              error_fn='MSE', l2_lambda=lambda_reg, momentum=alpha_momentum,
+                                              learning_rate=lr, optimizer='SGD constant lr')
 
     start_time = datetime.now()
     print('net initialized at {}'.format(start_time))
     print('initial validation_error = {}'.format(test_net.validate_net()))
-    test_net.batch_training(threshold=600, max_epochs=500)
+    test_net.batch_training(threshold=500, max_epochs=500, verbose=False, hyperparams_for_plot=hyperparams_descr)
     end_time = datetime.now()
     print('training completed at {} ({} elapsed)'.format(end_time, end_time - start_time))
     final_validation_error, accuracy = test_net.validate_net()
     print('final validation_error = {}'.format(final_validation_error))
-    print('final validation accuracy = {}'.format(accuracy))
+    print(f'final validation accuracy = {accuracy}')
 
     # todo: plot actual vs predicted (as accuracy and as MSE smoothing function)
 
