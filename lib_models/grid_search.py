@@ -28,22 +28,21 @@ HIST_VAL_MSE = 'val_mse'
 # 'accuracy'
 
 
-def grid_search():
-
-    with tf.summary.create_file_writer('logs/hparam_tuning').as_default():
-        hp.hparams_config(
-            hparams=[HP_NUM_UNITS, HP_OPTIMIZER],  # HP_DROPOUT,
-            metrics=[hp.Metric(METRIC_MSE, display_name='MSE')],
-        )
-
-
 def run(log_dir, run_name, hparams):
 
     run_dir = os.path.join(log_dir, run_name)
 
     with tf.summary.create_file_writer(run_dir).as_default():
-        hp.hparams(hparams, trial_id=run_name)  # record the values used in this trial
-        metrics_results, history = train_test_model(hparams)
+        # Write hyperparameter values (on the report file) for a single trial.
+        hp.hparams(hparams, trial_id=run_name)
+        '''
+        hp.hparams_config(
+            hparams=[HP_NUM_UNITS, HP_OPTIMIZER],  # HP_DROPOUT,
+            metrics=[hp.Metric(METRIC_MSE, display_name='MSE')],
+        )
+        '''
+        metrics_results, history = train_test_model_tf(hparams)
+
         print('val_loss: ', history.history['val_loss'][-1], ', val_mse: ', history.history['val_mse'][-1])
         # print('metrics_results.keys(): ', metrics_results.keys()) # loss, mse
         tf.summary.scalar('epochs', len(history.history['loss']), step=1)
@@ -51,18 +50,19 @@ def run(log_dir, run_name, hparams):
         tf.summary.scalar(HIST_VAL_MSE, history.history['val_mse'][-1], step=1)
         tf.summary.scalar(METRIC_MSE, metrics_results['mse'], step=1)
         tf.summary.scalar(METRIC_LOSS, metrics_results['loss'], step=1)
+        # TODO: add for loop for all values of loss/mse by epoch (both training and validation)
 
 
-def train_test_model(hparams):
+def train_test_model_tf(hparams):
     file_abs_path, has_header_row, sep, col_names, target_col_name, mini_batch_size, \
     input_dim, num_hid_layers, units_per_layer, out_dim, \
     NormalizationClass, activation_fun, l2_lambda, _, epochs_count, error_fn, _, _ \
         = tensorflow_nn.get_config_for_airfoil_dataset_tensorflow()
 
     train_split, val_split, test_split, col_names \
-        = tensorflow_nn.get_dataset1(file_abs_path, batch_size=mini_batch_size, sep=sep,
-                       # dev_split_ratio=0.85, train_split_ratio=0.7
-                       col_names=col_names, target_col_name=target_col_name, has_header_row=has_header_row)
+        = tensorflow_nn.get_dataset(file_abs_path, batch_size=mini_batch_size, sep=sep,
+                                    # dev_split_ratio=0.85, train_split_ratio=0.7
+                                    col_names=col_names, target_col_name=target_col_name, has_header_row=has_header_row)
 
     train_features, train_labels = tensorflow_nn.get_features_and_labels(train_split, target_col_name)
     val_features, val_labels = tensorflow_nn.get_features_and_labels(val_split, target_col_name)
@@ -161,6 +161,7 @@ def main():
     # repeat for each cv fold: total runs = num sessions x repeats x folds
     # todo: explicit use of alghorithm for weights and bias initialization
     # todo: saving initializations, so can be reused the same for each session (and there are as many as the repeats)
+    # todo: make a custom normalizer/denormalizer for output targets
 
     # Visualize the results in TensorBoard's HParams plugin
     # % tensorboard - -logdir logs / hparam_tuning
