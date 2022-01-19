@@ -26,7 +26,7 @@ def run_nn_only():
     net_shape = [5, 8, 1]
     split_id = int(np.round(example_number * train_ratio))
 
-    test_net = NeuralNet('tanh', net_shape, eta=0.01, alpha=0.12, lamda=0.005, task='regression')
+    test_net = NeuralNet('tanh', net_shape, eta=1e-4, alpha=5e-4, lamda=5e-7, mb=20, task='regression', error='MSE')
 
     test_net.load_training(data[:split_id], 1)
     test_net.load_validation(data[split_id:], 1)
@@ -190,4 +190,4 @@ def run_nn_and_tf():
 if __name__ == '__main__':
     # todo: collect training history to plot learning curve
     # run_nn_and_tf()
-    run_nn_only_classification()
+    run_nn_only()
