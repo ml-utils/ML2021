@@ -11,6 +11,7 @@ from numpy.random import default_rng
 
 # Local application imports
 from nn import NeuralNet
+from preprocessing import load_and_preprocess_monk_dataset
 
 
 def run_nn_only():
@@ -42,18 +43,11 @@ def run_nn_only():
 
 def run_nn_only_classification():
     root_dir = os.getcwd()
-    filename = 'monks-3.train'
+    filename = 'monks-2.train'
     file_path = os.path.join(root_dir, '..\\datasplitting\\assets\\monk\\', filename)
-    import pandas as pd
-    df = pd.read_csv(file_path, sep='\s')  #
-    df.columns = ['class_label', 'head_shape', 'body_shape', 'is_smiling', 'holding', 'jacket_color', 'has_tie', 'id']
-    df.drop(columns=['id'], inplace=True)
-    wanted_columns_order = ['head_shape', 'body_shape', 'is_smiling', 'holding', 'jacket_color', 'has_tie', 'class_label']
-    df = df.reindex(columns=wanted_columns_order)
-    categorical_data = np.array(df)
-    from one_hot_encoder import one_hot_encode_multiple_cols
-    data = one_hot_encode_multiple_cols(categorical_data, col_indexes_to_encode=[0,1,2,3,4,5],
-                                                   cols_to_not_change=[6])
+
+    data = load_and_preprocess_monk_dataset(file_path)
+
     # import seaborn as sns
     # sns.pairplot(pd.DataFrame(data), diag_kind='kde')
     # plt.show()
@@ -97,7 +91,7 @@ def run_nn_only_classification():
                             verbose=False, hyperparams_for_plot=hyperparams_descr)
     end_time = datetime.now()
     print('training completed at {} ({} elapsed)'.format(end_time, end_time - start_time))
-    final_validation_error, accuracy = test_net.validate_net()
+    final_validation_error, accuracy, vl_misc_rate = test_net.validate_net()
     print('final validation_error = {}'.format(final_validation_error))
     print(f'final validation accuracy = {accuracy}')
 

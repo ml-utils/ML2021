@@ -3,7 +3,7 @@ import numpy as np
 from numpy.testing import *
 import os
 import pandas as pd
-from one_hot_encoder import *
+from preprocessing import *
 
 
 class UnitTestsOneHotEncoder(unittest.TestCase):

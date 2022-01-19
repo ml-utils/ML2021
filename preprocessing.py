@@ -1,6 +1,20 @@
 import numpy as np
 
 
+def load_and_preprocess_monk_dataset(filepath):
+    import pandas as pd
+    df = pd.read_csv(filepath, sep='\s')  #
+    df.columns = ['class_label', 'head_shape', 'body_shape', 'is_smiling', 'holding', 'jacket_color', 'has_tie', 'id']
+    df.drop(columns=['id'], inplace=True)
+    wanted_columns_order = ['head_shape', 'body_shape', 'is_smiling', 'holding', 'jacket_color', 'has_tie', 'class_label']
+    df = df.reindex(columns=wanted_columns_order)
+    categorical_data = np.array(df)
+
+    data = one_hot_encode_multiple_cols(categorical_data, col_indexes_to_encode=[0,1,2,3,4,5],
+                                                   cols_to_not_change=[6])
+    return data
+
+
 def one_hot_encode(arr):
     b = np.zeros((arr.size, arr.max() + 1))
     b[np.arange(arr.size), arr] = 1

@@ -213,7 +213,7 @@ class NeuralNet:
         self.eta = eta*mb  # learning rate
         self.alpha = alpha*mb  # momentum parameter
         self.lamda = lamda*mb  # regularization parameter
-        self.mb = mb # number of patterns in each mini-batch
+        self.mb = mb  # number of patterns in each mini-batch
         self.batch_SE = 0 # squared error on latest mini-batch
         self.epoch_SE = 0 # squared error on latest epoch
 
@@ -374,7 +374,7 @@ class NeuralNet:
             entry_SE = (error_pattern**2).sum()
         else:
             entry_SE = error_pattern**2
-
+        # todo: of MEE (Mean Euclidean Error) MEE = abs(error_pattern) ..
         self.epoch_SE += entry_SE
         if verbose == 2:
             print(f'pattern update, predicted: {output} - label: {label} = error: {dEp_dOt}, '
@@ -431,7 +431,8 @@ class NeuralNet:
 
         train_errors = np.empty(max_epochs)     # support array to store training errors
         validate_errors = np.empty(max_epochs)  # support array to store validation errors
-        batch_rng = default_rng() # rng object to shuffle training set
+        vl_misclassification_rates = np.empty(max_epochs)  # support array to store miclassification rates
+        batch_rng = default_rng()  # rng object to shuffle training set
 
         # number of examples used in each epoch (lower than total number of TRAIN examples, see batch_split()
         example_number = self.training_set.shape[0] - self.training_set.shape[0] % self.mb
@@ -463,8 +464,9 @@ class NeuralNet:
 
             train_errors[epoch] = self.epoch_SE/example_number
             # todo: salve also history of accuracy per epoch
-            validate_errors[epoch], accuracy = self.validate_net(epoch)
+            validate_errors[epoch], accuracy, vl_misclassification_rates[epoch] = self.validate_net(epoch)
 
+            # todo: if no validation set has been explicitly loaded, automatically split a portion of the training set
             if validate_errors[epoch] < validate_errors[best_epoch_for_stopping]:
                 best_epoch_for_stopping = epoch
                 self.save_layers_weights_best_epoch()
@@ -483,26 +485,35 @@ class NeuralNet:
                                          validate_errors, train_errors):
                 break
 
+        best_tr_error = train_errors[best_epoch_for_stopping]
+        epochs_done = best_epoch_for_stopping
+
         train_error_path = os.path.join(self.net_dir, 'training_errors.csv')
         np.savetxt(train_error_path, train_errors[:epoch+1], delimiter=',')  # saves history of training errors on file
-
         validate_error_path = os.path.join(self.net_dir, 'validation_errors.csv')
         np.savetxt(validate_error_path, validate_errors[:epoch+1], delimiter=',')  # saves history of training errors on file
+        validate_error_path = os.path.join(self.net_dir, 'vl_misclassification_rates.csv')
+        np.savetxt(validate_error_path, validate_errors[:epoch+1], delimiter=',')  # saves on file history of vl misc rates
 
         import matplotlib.patches as mpatches
         f, ax = plt.subplots(1)
+        # todo: explain: why specify [:epoch+1]
         ax.plot(validate_errors[:epoch+1], label='validation errors')
         ax.plot(train_errors[:epoch+1], label='training errors')
+        ax.plot(vl_misclassification_rates[:epoch + 1], label='vl misclassification rates')
         plt.xlabel('epoch')
-        plt.ylabel('MSE')
+        plt.ylabel('MSE / miscl rate')
         handles, labels = ax.get_legend_handles_labels()
         handles.append(mpatches.Patch(color='none', label=hyperparams_for_plot))
         ax.legend(handles=handles)
 
         # todo: plot of accuracy metric (misclassification rate)
+        # todo: evaluate on monk test set files
 
         error_graph_path = os.path.join(self.net_dir, 'errors.png')
         plt.savefig(error_graph_path)
+
+        return best_tr_error, epochs_done
 
     def should_stop_training(self, stopping, threshold, max_epochs, epoch, best_epoch_for_stopping, patience,
                              validate_errors, train_errors):
@@ -572,11 +583,12 @@ class NeuralNet:
 
         if self.task == 'classification':
             accu = 100. * correct / total  # accuracy scores for classification tasks
+            misclassification_rate = (total - correct) / total
             # if isinstance(epoch, int) and not epoch % 100:  # prints every 100 epochs
                 # print(f'correct: {correct}, total: {total}')
                 # print(f'val predicted: {validation_predicted_outs}')
         error_smooth /= self.validation_set.shape[0]
-        return error_smooth, accu
+        return error_smooth, accu, misclassification_rate
 
 
 if __name__ == '__main__':
@@ -599,8 +611,8 @@ if __name__ == '__main__':
 
     start_time = datetime.now()
     print('net initialized at {}'.format(start_time))
-    print('initial validation_error = {}'.format(test_net.validate_net()))
+    print('initial validation_error = {}'.format(test_net.validate_net()[0]))
     test_net.batch_training()
     end_time = datetime.now()
     print('training completed at {} ({} elapsed)'.format(end_time, end_time-start_time))
-    print('final validation_error = {}'.format(test_net.validate_net()))
+    print('final validation_error = {}'.format(test_net.validate_net()[0]))
