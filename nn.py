@@ -117,7 +117,7 @@ class Layer:
             self.activation = np.vectorize(threshold_basic)  # threshold_basic
             self.derivative = np.vectorize(linearprime)
             # (todo check this is correct) in classification, we optimize the loss as MSE because it is differentiable,
-            #   so we derivate linear
+            #   so we use the derivative of the linear fn
 
     # evaluate(): evaluates input using current weights and stores input, net and output as class attributes
     # for later training
@@ -134,7 +134,11 @@ class Layer:
     # the back-propagating error signal from the next unit (? unit = neuron, layer, or sample?),
     # calculates actual gradient for weights update,
     # then returns error signal for the previous unit.
-    def calc_local_gradient(self, error_signal):
+    def calc_local_gradient(self, dEp_dOt):
+        # we sum local delta weigths for each sample (calc_local_gradient is called once per sample, per layer)
+        # nb: calc_local_gradient is being called for a specific layer
+
+        # NB: in the first call, dEp_dOt corresponds to the equation for the output layer
         # if role == output unit:
         # error_signal == o_j - d_j
         # (this assumes error function to be L2 norm; different error functions would require different definitions
@@ -142,31 +146,21 @@ class Layer:
 
         # if role == hidden unit k:
         # error_signal = sum_(j=1)^fan_out w_lj^(k+1)*delta_l
+        error_signal = dEp_dOt*self.derivative(self.latest_out)
+        # nb: we use latest_out instead of latest_net
+        # because, for convenience, the derivative functions here are expressed in terms of the out, not of the net
 
-        # todo, check: delta weights should be (negative) derivative (partial, for each w) of E(w)
-        p_gradient = error_signal*self.derivative(self.latest_out)
-        # we sum local delta weigths for each sample (calc_local_gradient is called once per sample, per layer)
-        # nb: calc_local_gradient is being called for a specific layer
-        self.delta_weights = self.delta_weights - np.outer(p_gradient, self.latest_in)
-        output_error_signal = np.matmul(self.weights.transpose(), p_gradient)
+        delta_weights_for_current_pattern = -1 * np.outer(error_signal, self.latest_in)  # this is delta_p_w_tu (∀ tu)
+        self.delta_weights += delta_weights_for_current_pattern
 
-        '''
-        if self.latest_out.size <= 2:
-            print(f'self.latest_out: {self.latest_out}, der(latest_out): {self.derivative(self.latest_out)}, '
-                  f'error_signal: {error_signal}, p_gradient: {p_gradient}')
-        else:
-            print(f'self.latest_out.shape: {self.latest_out.shape}, '
-                  f'der(latest_out).shape: {self.derivative(self.latest_out).shape}, '
-                  f'error_signal.shape: {error_signal.shape}, p_gradient.shape: {p_gradient.shape}')
-        print(f'self.delta_weights.shape: {self.delta_weights.shape}')  # = (layer_out_dim, layer_nodes + 1_bias)
-        # print(self.delta_weights)
-        '''
-        output_error_signal_up_to_index_1_from_the_end = output_error_signal[:-1]
-        #print(f'output_error_signal.shape: {output_error_signal.shape}, '
-        #      f'up_to_index_1_from_the_end.shape: {output_error_signal_up_to_index_1_from_the_end.shape}')
-        # todo, explain: are we excluding
+        # this is the equation of dEp_dOt (for each weight in next layer) for the hidden layer case
+        nextlayer_dEp_dOt = np.matmul(self.weights.transpose(), dEp_dOt)
+
+        nextlayer_dEp_dOt_without_the_biases = nextlayer_dEp_dOt[:-1]
+        # print(f'nextlayer_dEp_dOt.shape: {nextlayer_dEp_dOt.shape}, '
+        #      f'nextlayer_dEp_dOt_without_the_biases.shape: {nextlayer_dEp_dOt_without_the_biases.shape}')
         # shape is (layer_size + 1_bias,)
-        return output_error_signal_up_to_index_1_from_the_end
+        return nextlayer_dEp_dOt_without_the_biases
 
     # update_weights: update weights using both momentum and L2 regularization, updates delta_weights_old
     # for momentum and zeros delta_weights for successive training
@@ -267,6 +261,7 @@ class NeuralNet:
     def load_training(self, training_set, out=1, do_normalization=True):
 
         train_examples = training_set.shape[0]
+        print(f'Loading {train_examples} train examples..')
         self.eta /= train_examples
         self.lamda /= train_examples
         self.alpha /= train_examples
@@ -372,23 +367,24 @@ class NeuralNet:
     def pattern_update(self, entry, label, verbose=False):
         use_netx_instead_of_hx = self.task == 'classification'  #
         output = self.internal_evaluate(entry, use_netx_instead_of_hx=use_netx_instead_of_hx)
-        error_signal = output - label
+        error_pattern = output - label  # NB. dEp_dOt is one of the terms of the error signal delta_t (for each unit t)
+        dEp_dOt = error_pattern
         # print(f'{round(np.asscalar(output), 2)}; ', end=' ')
-        if type(error_signal) is np.ndarray:
-            entry_SE = (error_signal**2).sum()
+        if type(error_pattern) is np.ndarray:
+            entry_SE = (error_pattern**2).sum()
         else:
-            entry_SE = error_signal**2
+            entry_SE = error_pattern**2
 
         self.epoch_SE += entry_SE
         if verbose == 2:
-            print(f'pattern update, predicted: {output} - label: {label} = error: {error_signal}, '
+            print(f'pattern update, predicted: {output} - label: {label} = error: {dEp_dOt}, '
                   f'entry_SE_ {entry_SE}, updated epoch_SE: {self.epoch_SE}')
 
         # nb this is done for each pattern in a batch
         # todo, check: shouldn't we also propagate the L2 term (so the loss, not just the error)?
         for i, layer in reversed(list(enumerate(self.layers))):
             # print('calc_local_gradient layer ', i, ':')
-            error_signal = layer.calc_local_gradient(error_signal)
+            dEp_dOt = layer.calc_local_gradient(dEp_dOt)
 
         # todo, check: the final error signal is not returned here, so what's the point?
 
@@ -466,6 +462,7 @@ class NeuralNet:
                 self.update_weights()
 
             train_errors[epoch] = self.epoch_SE/example_number
+            # todo: salve also history of accuracy per epoch
             validate_errors[epoch], accuracy = self.validate_net(epoch)
 
             if validate_errors[epoch] < validate_errors[best_epoch_for_stopping]:
@@ -502,6 +499,8 @@ class NeuralNet:
         handles.append(mpatches.Patch(color='none', label=hyperparams_for_plot))
         ax.legend(handles=handles)
 
+        # todo: plot of accuracy metric (misclassification rate)
+
         error_graph_path = os.path.join(self.net_dir, 'errors.png')
         plt.savefig(error_graph_path)
 
@@ -519,11 +518,18 @@ class NeuralNet:
                 return True
             else:
                 if epoch > patience:
-                    relative_change = abs(validate_errors[epoch] - validate_errors[epoch - 1]) / validate_errors[epoch - 1]
-                    if relative_change < threshold:
+                    past_epochs_to_count = patience
+                    mean_relative_change = 0
+                    for epoch_idx in range(epoch-past_epochs_to_count+1, epoch+1):
+                        mean_relative_change += abs(validate_errors[epoch_idx] - validate_errors[epoch_idx - 1]) \
+                                                / validate_errors[epoch_idx - 1]
+                    mean_relative_change /= past_epochs_to_count
+                    if mean_relative_change < threshold:
                         self.restore_layers_weights_best_epoch()
                         print(f'Stopping: at epoch {epoch}, '
-                              f'relative_change={relative_change} less than {threshold}.')
+                              f'mean_relative_change={mean_relative_change} (over the last {past_epochs_to_count} epochs) '
+                              f'is less than {threshold}.')
+                        print(f'restoring weights at epoch {best_epoch_for_stopping}')
                         return True
         elif stopping == 'MSE1_tr':
             relative_change = (train_errors[epoch] - train_errors[epoch - 1]) / train_errors[epoch - 1]

@@ -42,7 +42,7 @@ def run_nn_only():
 
 def run_nn_only_classification():
     root_dir = os.getcwd()
-    filename = 'monks-1.train'
+    filename = 'monks-3.train'
     file_path = os.path.join(root_dir, '..\\datasplitting\\assets\\monk\\', filename)
     import pandas as pd
     df = pd.read_csv(file_path, sep='\s')  #
@@ -58,46 +58,32 @@ def run_nn_only_classification():
     # sns.pairplot(pd.DataFrame(data), diag_kind='kde')
     # plt.show()
 
-    train_ratio = 0.7
     rng = default_rng()
     rng.shuffle(data)
     example_number = data.shape[0]
+    train_ratio = 0.813
+    split_id = int(np.round(example_number * train_ratio))
+    print(f'doing {split_id} samples for training, and {example_number - split_id} for validation')
+    mini_batch_size = 1
 
     print('dataset head after shuffling: ')
     print(data[:5])
     task = 'classification'
     activation = 'tanh'  # 'sigmoid' # 'tanh'
-    net_shape = [17, 2, 1]
-    mini_batch_size = 20
-    lr = 0.01
+    net_shape = [17, 10, 1]
+    lr = 0.05
     alpha_momentum = 0.12
-    split_id = int(np.round(example_number * train_ratio))
-    print(f'doing {split_id} samples for training, and {example_number - split_id} for validation')
-    lambda_reg = 0  # 0.005
+    lambda_reg = 0  # 0.001  # 0.005
+    stopping_threshold = 0.00005
+    max_epochs = 1500
+    patience = 50
+
     test_net = NeuralNet(activation, net_shape, eta=lr, alpha=alpha_momentum, lamda=lambda_reg, mb=mini_batch_size,
                          task=task, verbose=True)
 
     test_net.load_training(data[:split_id], 1, do_normalization=False)
     test_net.load_validation(data[split_id:], 1)
 
-    '''
-    print('trainins set head, check if one hot features are normalized: ')
-    print(test_net.training_set[:5])
-    print('val set: ')
-    print(test_net.validation_set[:5])
-    print('shift_vector: ', test_net.shift_vector, ', scale_vector: ', test_net.scale_vector)
-
-    # denormalized one hot features:
-    test_net.training_set = (test_net.training_set * test_net.scale_vector) + (test_net.shift_vector)
-    test_net.validation_set = (test_net.validation_set * test_net.scale_vector) + (test_net.shift_vector)
-    test_net.training_set = np.rint(test_net.training_set)
-    test_net.validation_set = np.rint(test_net.validation_set)
-
-    print('trainins set head, check if one hot features are de-normalized: ')
-    print(test_net.training_set[:5])
-    print('val set: ')
-    print(test_net.validation_set[:5])
-    '''
     from lib_models.utils import get_hyperparams_descr
     hyperparams_descr = get_hyperparams_descr(filename, str(net_shape), activation, mini_batch_size,
                                               error_fn='MSE', l2_lambda=lambda_reg, momentum=alpha_momentum,
@@ -106,7 +92,8 @@ def run_nn_only_classification():
     start_time = datetime.now()
     print('net initialized at {}'.format(start_time))
     print('initial validation_error = {}'.format(test_net.validate_net()))
-    test_net.batch_training(threshold=0.001, max_epochs=500, stopping='MSE2_val', patience=50,
+
+    test_net.batch_training(threshold=stopping_threshold, max_epochs=max_epochs, stopping='MSE2_val', patience=patience,
                             verbose=False, hyperparams_for_plot=hyperparams_descr)
     end_time = datetime.now()
     print('training completed at {} ({} elapsed)'.format(end_time, end_time - start_time))
