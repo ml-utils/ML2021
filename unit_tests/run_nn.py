@@ -10,11 +10,12 @@ import numpy as np
 from numpy.random import default_rng
 
 # Local application imports
+from lib_models.utils import get_hyperparams_descr
 from nn import NeuralNet
 from preprocessing import load_and_preprocess_monk_dataset
 
 
-def run_nn_only():
+def run_nn_only_regression():
     # trains basic neural network on the airfoil dataset
     root_dir = os.getcwd()
     data_dir = os.path.join(root_dir, '..\\datasplitting\\assets\\airfoil\\airfoil_self_noise.dat.csv')
@@ -23,19 +24,30 @@ def run_nn_only():
     rng = default_rng()
     rng.shuffle(data)
     example_number = data.shape[0]
-
+    activation = 'tanh'
+    mini_batch_size = 20
+    error_fn = 'MSE'
+    adaptive_lr = 'SGD constant lr'
+    lr = 1e-4
+    lambda_reg = 5e-7
+    alpha_momentum = 5e-4
     net_shape = [5, 8, 1]
     split_id = int(np.round(example_number * train_ratio))
 
-    test_net = NeuralNet('tanh', net_shape, eta=0.01, alpha=0.12, lamda=0.005, task='regression')
+    test_net = NeuralNet(activation, net_shape, eta=lr, alpha=alpha_momentum, lamda=lambda_reg, mb=mini_batch_size,
+                         task='regression', error=error_fn)
 
     test_net.load_training(data[:split_id], 1)
     test_net.load_validation(data[split_id:], 1)
 
+    hyperparams_descr = get_hyperparams_descr(data_dir, str(net_shape), activation, mini_batch_size,
+                                              error_fn=error_fn, l2_lambda=lambda_reg, momentum=alpha_momentum,
+                                              learning_rate=lr, optimizer=adaptive_lr)
+
     start_time = datetime.now()
     print('net initialized at {}'.format(start_time))
     print('initial validation_error = {}'.format(test_net.validate_net()))
-    test_net.batch_training()
+    test_net.batch_training(hyperparams_for_plot=hyperparams_descr)
     end_time = datetime.now()
     print('training completed at {} ({} elapsed)'.format(end_time, end_time - start_time))
     print('final validation_error = {}'.format(test_net.validate_net()))
@@ -78,11 +90,10 @@ def run_nn_only_classification():
     test_net.load_training(data[:split_id], 1, do_normalization=False)
     test_net.load_validation(data[split_id:], 1)
 
-    from lib_models.utils import get_hyperparams_descr
     hyperparams_descr = get_hyperparams_descr(filename, str(net_shape), activation, mini_batch_size,
                                               error_fn='MSE', l2_lambda=lambda_reg, momentum=alpha_momentum,
                                               learning_rate=lr, optimizer='SGD constant lr')
-
+    print(f'running training with hyperparams: {hyperparams_descr}')
     start_time = datetime.now()
     print('net initialized at {}'.format(start_time))
     print('initial validation_error = {}'.format(test_net.validate_net()))
@@ -184,4 +195,5 @@ def run_nn_and_tf():
 if __name__ == '__main__':
     # todo: collect training history to plot learning curve
     # run_nn_and_tf()
+    # run_nn_only_regression()
     run_nn_only_classification()

@@ -178,7 +178,7 @@ class Layer:
 class NeuralNet:
 
     def __init__(self, activation, units=(2, 2), eta=0.1, alpha=0.1, lamda=0.01, mb=20,
-                 task='classification', placeholder=False, verbose=False, **kwargs):
+                 task='classification', error='MSE', placeholder=False, verbose=False, **kwargs):
 
         # activation (string): name of activation function used
         #                      (TODO: add way to use different functions for different layers)
@@ -188,6 +188,7 @@ class NeuralNet:
         # lamda (float): regularization parameter
         # mb (int): number of patterns in each mini-batch
         # task (string): task the NN is meant to perform (classification or regression)
+        # error (string): error function to be minimized during training
         # **kwargs: idk it'll be useful for something
 
         if verbose:
@@ -210,10 +211,12 @@ class NeuralNet:
         self.layers_weights_best_epoch = []
         self.save_layers_weights_best_epoch()
 
-        self.eta = eta*mb  # learning rate
-        self.alpha = alpha*mb  # momentum parameter
-        self.lamda = lamda*mb  # regularization parameter
-        self.mb = mb  # number of patterns in each mini-batch
+
+        self.error_func = error # error function
+        self.eta = eta  # learning rate
+        self.alpha = alpha  # momentum parameter
+        self.lamda = lamda  # regularization parameter
+        self.mb = mb # number of patterns in each mini-batch
         self.batch_SE = 0 # squared error on latest mini-batch
         self.epoch_SE = 0 # squared error on latest epoch
 
@@ -236,10 +239,11 @@ class NeuralNet:
         self.savestate(0)
 
     @classmethod
-    def load_net(cls, path, activation, eta=0.1, alpha=0.1, lamda=0.01, mb=20, task='classification', **kwargs):
+    def load_net(cls, path, activation, eta=0.1, alpha=0.1, lamda=0.01, mb=20, task='classification', error='MSE',
+                 **kwargs):
 
         net = NeuralNet(activation, eta=eta, alpha=alpha, lamda=lamda, mb=mb,
-                        task=task, placeholder=True, **kwargs)
+                        task=task, error=error, placeholder=True, **kwargs)
 
         all_files = os.listdir(path)
         layer_files = [file for file in all_files if (file[:6] == 'layer_' and file[-4:] == '.csv')]
@@ -262,9 +266,6 @@ class NeuralNet:
 
         train_examples = training_set.shape[0]
         print(f'Loading {train_examples} train examples..')
-        self.eta /= train_examples
-        self.lamda /= train_examples
-        self.alpha /= train_examples
         inp = training_set.shape[1] - out
         if inp != self.fan_in:
             raise ValueError('Number of input variables in training set doesn\'t match input units!')
@@ -368,14 +369,21 @@ class NeuralNet:
         use_netx_instead_of_hx = self.task == 'classification'  #
         output = self.internal_evaluate(entry, use_netx_instead_of_hx=use_netx_instead_of_hx)
         error_pattern = output - label  # NB. dEp_dOt is one of the terms of the error signal delta_t (for each unit t)
-        dEp_dOt = error_pattern
         # print(f'{round(np.asscalar(output), 2)}; ', end=' ')
         if type(error_pattern) is np.ndarray:
             entry_SE = (error_pattern**2).sum()
         else:
             entry_SE = error_pattern**2
-        # todo: of MEE (Mean Euclidean Error) MEE = abs(error_pattern) ..
+
+        if self.error_func == 'MSE':
+            dEp_dOt = error_pattern
+
+        elif self.error_func == 'MEE':
+            entry_SE = np.sqrt(entry_SE)
+            dEp_dOt = error_pattern/entry_SE
+
         self.epoch_SE += entry_SE
+
         if verbose == 2:
             print(f'pattern update, predicted: {output} - label: {label} = error: {dEp_dOt}, '
                   f'entry_SE_ {entry_SE}, updated epoch_SE: {self.epoch_SE}')
@@ -412,14 +420,17 @@ class NeuralNet:
             layer.weights = self.layers_weights_best_epoch[idx]
 
     # trains neural net for fixed number of epochs using mini-batch method; also saves MSE for each epoch on file
-    def batch_training(self, stopping='epochs', patience=50, threshold=0.01, max_epochs=500,
+    def batch_training(self, stopping='epochs', patience=50, threshold=0.01, max_epochs=500, error_func=None,
                        verbose=False, hyperparams_for_plot=''):  # TODO: implement actual stopping conditions
 
+        if error_func is None:
+            error_func = self.error_func
         # stopping (string):        name of stopping condition to be used during training
         # threshold (int or float): numerical threshold at which to stop training;
         #                           exact meaning depends on stopping condition
         # max_epochs (int):         maximum number of epochs per training
-
+        # error_func (string):      error function to use when evaluating neural net; defaults to same one minimized
+        #                           by training but can be chosen to be different
         # list of implemented stopping conditions:
 
         # 'epochs': stop training after *max_epochs* number of epochs
@@ -464,7 +475,8 @@ class NeuralNet:
 
             train_errors[epoch] = self.epoch_SE/example_number
             # todo: salve also history of accuracy per epoch
-            validate_errors[epoch], accuracy, vl_misclassification_rates[epoch] = self.validate_net(epoch)
+
+            validate_errors[epoch], accuracy, vl_misclassification_rates[epoch] = self.validate_net(epoch, error_func)
 
             # todo: if no validation set has been explicitly loaded, automatically split a portion of the training set
             if validate_errors[epoch] < validate_errors[best_epoch_for_stopping]:
@@ -502,7 +514,10 @@ class NeuralNet:
         ax.plot(train_errors[:epoch+1], label='training errors')
         ax.plot(vl_misclassification_rates[:epoch + 1], label='vl misclassification rates')
         plt.xlabel('epoch')
-        plt.ylabel('MSE / miscl rate')
+
+        y_axis_label = 'MSE / miscl rate' if self.task == 'classification' else self.error_func
+        plt.ylabel(y_axis_label)
+
         handles, labels = ax.get_legend_handles_labels()
         handles.append(mpatches.Patch(color='none', label=hyperparams_for_plot))
         ax.legend(handles=handles)
@@ -549,7 +564,9 @@ class NeuralNet:
         return False
 
     # calculates MSE on the validation set with current weights
-    def validate_net(self, epoch=None):
+    def validate_net(self, epoch=None, error_func=None):
+        if error_func is None:
+            error_func = self.error_func
         # todo: add metrics (accuracy) for classification
 
         error_smooth = 0
@@ -571,9 +588,15 @@ class NeuralNet:
             validation_predicted_outs.append(np.asscalar(predicted_y))
             if type(y) is np.ndarray:
                 # todo pass error fn (MSE, MAE, ..) as parameter like for activation functions
-                error_smooth += ((y - predicted_y)**2).sum()
+                current_error = ((y - predicted_y)**2).sum()
             else:
-                error_smooth += (y - predicted_y)**2
+                current_error = (y - predicted_y)**2
+
+            if error_func == 'MSE':
+                error_smooth += current_error
+
+            if error_func == 'MEE':
+                error_smooth += np.sqrt(current_error)
 
             if self.task == 'classification':
                 # _, predicted = outputs.max(1)
@@ -581,6 +604,7 @@ class NeuralNet:
                 correct += np.sum(discretized_predicted_y == y)
                 # print(f'thresholded_predicted_y: {thresholded_predicted_y}, y: {y}')
 
+        misclassification_rate = None
         if self.task == 'classification':
             accu = 100. * correct / total  # accuracy scores for classification tasks
             misclassification_rate = (total - correct) / total
