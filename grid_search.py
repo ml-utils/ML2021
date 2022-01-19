@@ -16,25 +16,25 @@ from preprocessing import load_and_preprocess_monk_dataset
 
 
 AIRF_TF_HP_RANGES = {
-    HP.NUM_UNITS_PER_HID_LAYER: hp.HParam(HP.NUM_UNITS_PER_HID_LAYER, hp.Discrete([32, 128])),
+    HP.UNITS_PER_LAYER: hp.HParam(HP.UNITS_PER_LAYER, hp.Discrete([32, 128])),
     HP.OPTIMIZER: hp.HParam(HP.OPTIMIZER, hp.Discrete(['adam', 'rmsprop'])),  # , 'sgd', 'adagrad'
-    HP.LEARNING_RATE: hp.HParam(HP.LEARNING_RATE, hp.RealInterval(0.001, 0.01)),
+    HP.LR: hp.HParam(HP.LR, hp.RealInterval(0.001, 0.01)),
     HP.MOMENTUM: hp.HParam(HP.MOMENTUM, hp.Discrete([0.5])),  # hp.RealInterval(0.5, 0.9)),
     HP.LAMBDA_L2: hp.HParam(HP.LAMBDA_L2, hp.RealInterval(min_value=0.001, max_value=0.1)),
     # HP.DROPOUT: hp.HParam('dropout', hp.RealInterval(0.1, 0.2)),
-    HP.MINI_BATCH_SIZE: hp.HParam(HP.MINI_BATCH_SIZE, hp.Discrete([1, 20])),
+    HP.MB: hp.HParam(HP.MB, hp.Discrete([1, 20])),
     HP.ACTIV_FUN: hp.HParam(HP.ACTIV_FUN, hp.Discrete(['relu']))  # activation=activation_fun
 }
 
 MONK_CUSTOM_NET_HP_RANGES = {
-    HP.NUM_UNITS_PER_HID_LAYER: hp.HParam(HP.NUM_UNITS_PER_HID_LAYER, hp.Discrete([4, 10])),
-    HP.NUM_HID_LAYERS: hp.HParam(HP.NUM_HID_LAYERS, hp.Discrete([1])),
+    HP.UNITS_PER_LAYER: hp.HParam(HP.UNITS_PER_LAYER, hp.Discrete([4, 10])),
+    HP.N_HID_LAYERS: hp.HParam(HP.N_HID_LAYERS, hp.Discrete([1])),
     HP.OPTIMIZER: hp.HParam(HP.OPTIMIZER, hp.Discrete(['SGD constant lr'])),
-    HP.LEARNING_RATE: hp.HParam(HP.LEARNING_RATE, hp.RealInterval(0.001, 0.1)),
+    HP.LR: hp.HParam(HP.LR, hp.RealInterval(0.001, 0.1)),
     HP.MOMENTUM: hp.HParam(HP.MOMENTUM, hp.Discrete([0.1, 0.5])),  # hp.RealInterval(0.5, 0.9)),
     HP.LAMBDA_L2: hp.HParam(HP.LAMBDA_L2, hp.RealInterval(min_value=0.0001, max_value=0.1)),
     # HP.DROPOUT: hp.HParam('dropout', hp.RealInterval(0.1, 0.2)),
-    HP.MINI_BATCH_SIZE: hp.HParam(HP.MINI_BATCH_SIZE, hp.Discrete([1, 20])),
+    HP.MB: hp.HParam(HP.MB, hp.Discrete([1, 20])),
     HP.ACTIV_FUN: hp.HParam(HP.ACTIV_FUN, hp.Discrete(['tanh', 'sigmoid'])),
     HP.STOPPING_THRESH: hp.HParam(HP.STOPPING_THRESH, hp.Discrete([0.00005])),
     HP.PATIENCE: hp.HParam(HP.PATIENCE, hp.Discrete([50])),
@@ -67,13 +67,13 @@ def main():
     session_num = 0
     repeats_per_run = 3
     iters = [
-        HP_RANGES[HP.NUM_UNITS_PER_HID_LAYER].domain.values,
-        HP_RANGES[HP.NUM_HID_LAYERS].domain.values,
-        (HP_RANGES[HP.LEARNING_RATE].domain.min_value, HP_RANGES[HP.LEARNING_RATE].domain.max_value),
+        HP_RANGES[HP.UNITS_PER_LAYER].domain.values,
+        HP_RANGES[HP.N_HID_LAYERS].domain.values,
+        (HP_RANGES[HP.LR].domain.min_value, HP_RANGES[HP.LR].domain.max_value),
         HP_RANGES[HP.MOMENTUM].domain.values,
         (HP_RANGES[HP.LAMBDA_L2].domain.min_value, HP_RANGES[HP.LAMBDA_L2].domain.max_value),
         HP_RANGES[HP.OPTIMIZER].domain.values,
-        HP_RANGES[HP.MINI_BATCH_SIZE].domain.values,
+        HP_RANGES[HP.MB].domain.values,
         HP_RANGES[HP.ACTIV_FUN].domain.values,
         HP_RANGES[HP.STOPPING_THRESH].domain.values,
         HP_RANGES[HP.PATIENCE].domain.values,
@@ -91,13 +91,13 @@ def main():
     for num_units, num_hid_layers, lr, momentum, l2_lambda, optimizer, mb_size, activation, stop_thresh, \
         patience, max_epochs, error_fn, early_stopping_alg in product(*iters):
         hparams = {
-            HP.NUM_UNITS_PER_HID_LAYER: num_units,
-            HP.NUM_HID_LAYERS: num_hid_layers,
-            HP.LEARNING_RATE: lr,
+            HP.UNITS_PER_LAYER: num_units,
+            HP.N_HID_LAYERS: num_hid_layers,
+            HP.LR: lr,
             HP.MOMENTUM: momentum,
             HP.LAMBDA_L2: l2_lambda,
             HP.OPTIMIZER: optimizer,
-            HP.MINI_BATCH_SIZE: mb_size,
+            HP.MB: mb_size,
             HP.ACTIV_FUN: activation,
             HP.STOPPING_THRESH: stop_thresh,
             HP.PATIENCE: patience,
@@ -217,18 +217,18 @@ def train_test_custom_nn(hparams, cfg):
     print('dataset head after shuffling: ')
     print(data[:5])
     task = cfg[CFG.TASK_TYPE]
-    mini_batch_size = hparams[HP.MINI_BATCH_SIZE]
+    mini_batch_size = hparams[HP.MB]
     activation = hparams[HP.ACTIV_FUN]  # 'sigmoid' # 'tanh'
 
     out_dim = cfg[CFG.OUT_DIM]
     input_dim = cfg[CFG.INPUT_DIM]
-    num_hid_layers = hparams[HP.NUM_HID_LAYERS]
-    num_units_per_hid_layer = hparams[HP.NUM_UNITS_PER_HID_LAYER]
+    num_hid_layers = hparams[HP.N_HID_LAYERS]
+    num_units_per_hid_layer = hparams[HP.UNITS_PER_LAYER]
     net_shape = [input_dim]
     for _ in range(num_hid_layers):
         net_shape.append(num_units_per_hid_layer)
     net_shape.append(out_dim)  # ie net_shape = [17, 10, 1]
-    lr = hparams[HP.LEARNING_RATE]  # 0.05
+    lr = hparams[HP.LR]  # 0.05
     alpha_momentum = hparams[HP.MOMENTUM] # 0.12
     lambda_reg = hparams[HP.LAMBDA_L2]  # 0  # 0.001  # 0.005
     stopping_threshold = hparams[HP.STOPPING_THRESH]  # 0.00005

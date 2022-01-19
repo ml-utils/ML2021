@@ -7,14 +7,14 @@ class AutoName(Enum):
 
 
 class HP(AutoName):
-    NUM_UNITS_PER_HID_LAYER = auto()
-    NUM_HID_LAYERS = auto()
+    UNITS_PER_LAYER = auto()
+    N_HID_LAYERS = auto()
     ACTIV_FUN = auto()
     OPTIMIZER = auto()
-    LEARNING_RATE = auto()
+    LR = auto()
     MOMENTUM = auto()
     LAMBDA_L2 = auto()
-    MINI_BATCH_SIZE = auto()
+    MB = auto()
     STOPPING_THRESH = auto()
     EARLY_STOP_ALG = auto()
     PATIENCE = auto()

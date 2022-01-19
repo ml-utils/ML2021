@@ -38,9 +38,9 @@ def train_test_model_tf(hparams):
                                                           features_normalizer=features_normalizer)
     )
 
-    opt_args_nesterov = {'learning_rate': hparams[HP.LEARNING_RATE], 'nesterov': True, 'momentum': hparams[HP.MOMENTUM]}
-    opt_args_no_nesterov = {'learning_rate': hparams[HP.LEARNING_RATE], 'momentum': hparams[HP.MOMENTUM]}
-    opt_args_no_momentum = {'learning_rate': hparams[HP.LEARNING_RATE]}
+    opt_args_nesterov = {'learning_rate': hparams[HP.LR], 'nesterov': True, 'momentum': hparams[HP.MOMENTUM]}
+    opt_args_no_nesterov = {'learning_rate': hparams[HP.LR], 'momentum': hparams[HP.MOMENTUM]}
+    opt_args_no_momentum = {'learning_rate': hparams[HP.LR]}
     if hparams[HP.OPTIMIZER].lower() == 'adam':
         opt = tf.optimizers.Adam(**opt_args_no_momentum)
     elif hparams[HP.OPTIMIZER].lower() == 'adagrad':
