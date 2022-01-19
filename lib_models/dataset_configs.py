@@ -103,7 +103,7 @@ def get_config_for_custom_nn():
     test_net.batch_training()
     end_time = datetime.now()
     print('training completed at {} ({} elapsed)'.format(end_time, end_time - start_time))
-    print('final validation_error = {}'.format(test_net.validate_net()))
+    print(f'final validation_error = {test_net.validate_net()[0]:0.3f}')
 
 
 def get_config_for_winequality_dataset_pytorch():

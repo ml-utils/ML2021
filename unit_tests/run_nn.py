@@ -46,11 +46,11 @@ def run_nn_only_regression():
 
     start_time = datetime.now()
     print('net initialized at {}'.format(start_time))
-    print('initial validation_error = {}'.format(test_net.validate_net()))
+    print(f'initial validation_error = {test_net.validate_net()[0]:0.3f}')
     test_net.batch_training(hyperparams_for_plot=hyperparams_descr)
     end_time = datetime.now()
     print('training completed at {} ({} elapsed)'.format(end_time, end_time - start_time))
-    print('final validation_error = {}'.format(test_net.validate_net()))
+    print(f'final validation_error = {test_net.validate_net()[0]:0.3f}')
 
 
 def run_nn_only_classification():
@@ -96,15 +96,15 @@ def run_nn_only_classification():
     print(f'running training with hyperparams: {hyperparams_descr}')
     start_time = datetime.now()
     print('net initialized at {}'.format(start_time))
-    print('initial validation_error = {}'.format(test_net.validate_net()))
+    print(f'initial validation_error = {test_net.validate_net()[0]:0.3f}')
 
     test_net.batch_training(threshold=stopping_threshold, max_epochs=max_epochs, stopping='MSE2_val', patience=patience,
                             verbose=False, hyperparams_for_plot=hyperparams_descr)
     end_time = datetime.now()
     print('training completed at {} ({} elapsed)'.format(end_time, end_time - start_time))
     final_validation_error, accuracy, vl_misc_rate = test_net.validate_net()
-    print('final validation_error = {}'.format(final_validation_error))
-    print(f'final validation accuracy = {accuracy}')
+    print(f'final validation_error = {final_validation_error:0.3f}')
+    print(f'final validation accuracy = {accuracy:0.3f}')
 
     # todo: plot actual vs predicted (as accuracy and as MSE smoothing function)
 
@@ -169,11 +169,11 @@ def run_nn_and_tf():
     '''
     start_time = datetime.now()
     print('custom nn initialized at {}'.format(start_time))
-    print('initial validation_error = {}'.format(test_net.validate_net()))
+    print(f'initial validation_error = {test_net.validate_net()[0]:0.3f}')
     test_net.batch_training(stopping='epochs', threshold=300, max_epochs=500)
     end_time = datetime.now()
     print('custm nn training completed at {} ({} elapsed)'.format(end_time, end_time - start_time))
-    print('final validation_error = {}'.format(test_net.validate_net()))
+    print(f'final validation_error = {test_net.validate_net()[0]:0.3f}')
 
     start_time = datetime.now()
     print('tf nn initialized at {}'.format(start_time))

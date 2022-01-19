@@ -128,7 +128,6 @@ def main():
 def run(model_type, log_dir, grid_search_name, run_name, hparams, cfg):
 
     run_dir = os.path.join(log_dir, run_name)
-    print(f'run, hparams: {hparams}')
     # todo: might be better to just export the grid search results to a csv file and visualize it with excel
     # todo: what about the plots? the auto generated png files should have some id to recognize the trial
         # with tf.summary.create_file_writer(run_dir).as_default():
@@ -153,8 +152,28 @@ def run(model_type, log_dir, grid_search_name, run_name, hparams, cfg):
             RES.epochs_done: len(history.history['loss'])
         }
 
-    print('results: ', results)
+    print('results: ', for_print(results))
     append_trial_info_to_report(log_dir, grid_search_name, run_name, hparams, results)
+
+
+def for_print(dct):
+    round_decimals_in_dict(dct)
+    shorten_dict_keynames(dct)
+    return dct
+
+
+def shorten_dict_keynames(dct):
+    for key in list(dct):
+        if hasattr(key, 'name'):
+            h_value = dct[key]
+            del dct[key]
+            dct[key.name] = h_value
+
+
+def round_decimals_in_dict(dct):
+    for key, value in dct.items():
+        if isinstance(value, float):
+            dct[key] = "{:0.3f}".format(value)
 
 
 def append_trial_info_to_report(run_dir, grid_search_name, run_name, hparams, results):
@@ -168,6 +187,10 @@ def append_trial_info_to_report(run_dir, grid_search_name, run_name, hparams, re
     print(f'appending trial results to {file_abs_path}')
     file_already_exists = os.path.exists(file_abs_path)
     write_mode = 'a' if file_already_exists else 'w'
+    # shortening field names for csv readability
+    # hp_names = [h.name if hasattr(h, 'name') else h for h in trial_info]
+    shorten_dict_keynames(trial_info)
+
     try:
         with open(file_abs_path, write_mode, newline='') as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=trial_info.keys(), delimiter=';')
@@ -228,7 +251,7 @@ def train_test_custom_nn(hparams, cfg):
 
     start_time = datetime.now()
     print('net initialized at {}'.format(start_time))
-    print('initial validation_error = {}'.format(test_net.validate_net()))
+    print(f'initial validation_error = {test_net.validate_net()[0]:0.3f}')
 
     best_tr_error, epochs_done = test_net.batch_training(threshold=stopping_threshold, max_epochs=max_epochs,
                                                          stopping=early_stopping_alg, patience=patience,
@@ -236,8 +259,8 @@ def train_test_custom_nn(hparams, cfg):
     end_time = datetime.now()
     print('training completed at {} ({} elapsed)'.format(end_time, end_time - start_time))
     final_validation_error, accuracy, vl_misc_rate = test_net.validate_net()
-    print('final validation_error = {}'.format(final_validation_error))
-    print(f'final validation accuracy = {accuracy}')
+    print(f'final validation_error = {final_validation_error:0.3f}')
+    print(f'final validation accuracy = {accuracy:0.3f}')
 
     # todo: plot actual vs predicted (as accuracy and as MSE smoothing function)
     return best_tr_error, epochs_done, final_validation_error, accuracy

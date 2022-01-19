@@ -2,6 +2,7 @@ import numpy as np
 
 
 def load_and_preprocess_monk_dataset(filepath):
+    print(f'loading {filepath}')
     import pandas as pd
     df = pd.read_csv(filepath, sep='\s')  #
     df.columns = ['class_label', 'head_shape', 'body_shape', 'is_smiling', 'holding', 'jacket_color', 'has_tie', 'id']

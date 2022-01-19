@@ -487,10 +487,10 @@ class NeuralNet:
                 print('epoch train error: ', train_errors[epoch])
             if not epoch % 100: # prints training status on console every 100 epochs
                 self.savestate(epoch)
-                print(f'epoch {epoch} done (tr error = {train_errors[epoch]}, tr patterns: {example_number}, '
-                      f' actual_used_tr_patterms: {actual_used_tr_patterms}, '
-                      f'val error = {validate_errors[epoch]}, val patterns: {self.validation_set.shape[0]}, '
-                      f'accuracy = {accuracy})')
+                print(f'epoch {epoch} done (tr error = {train_errors[epoch]:.3f}, tr patterns: {example_number} '
+                      f'(of which used: {actual_used_tr_patterms}), '
+                      f'val error = {validate_errors[epoch]:.3f}, val patterns: {self.validation_set.shape[0]}, '
+                      f'accuracy = {accuracy:.3f})')
 
             # check for stopping conditions
             if self.should_stop_training(stopping, threshold, max_epochs, epoch, best_epoch_for_stopping, patience,
@@ -635,8 +635,8 @@ if __name__ == '__main__':
 
     start_time = datetime.now()
     print('net initialized at {}'.format(start_time))
-    print('initial validation_error = {}'.format(test_net.validate_net()[0]))
+    print(f'initial validation_error = {test_net.validate_net()[0]:.3f}')
     test_net.batch_training()
     end_time = datetime.now()
     print('training completed at {} ({} elapsed)'.format(end_time, end_time-start_time))
-    print('final validation_error = {}'.format(test_net.validate_net()[0]))
+    print(f'final validation_error = {test_net.validate_net()[0]}')
