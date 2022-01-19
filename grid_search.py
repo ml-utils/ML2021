@@ -137,18 +137,18 @@ def run(model_type, log_dir, grid_search_name, run_name, hparams, cfg):
 
         best_tr_error, epochs_done, final_validation_error, accuracy = train_test_custom_nn(hparams, cfg)
         results = {
-            RES.last_vl_mse: final_validation_error,
-            RES.last_tr_mse: best_tr_error,
+            RES.mse_vl_last: final_validation_error,
+            RES.mse_tr_last: best_tr_error,
             RES.accuracy: accuracy,
             RES.epochs_done: epochs_done
         }
     elif model_type == 'airfoil_tf':
         metrics_results, history = train_test_model_tf(hparams, cfg)
         results = {
-            RES.last_vl_loss: history.history['val_loss'][-1],
-            RES.last_vl_mse: history.history['val_mse'][-1],
-            RES.last_tr_loss: metrics_results['loss'],
-            RES.last_tr_mse: metrics_results['mse'],
+            RES.loss_vl_last: history.history['val_loss'][-1],
+            RES.mse_vl_last: history.history['val_mse'][-1],
+            RES.loss_tr_last: metrics_results['loss'],
+            RES.mse_tr_last: metrics_results['mse'],
             RES.epochs_done: len(history.history['loss'])
         }
 

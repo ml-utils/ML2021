@@ -33,9 +33,9 @@ class CFG(AutoName):
 
 
 class RES(AutoName):
-    last_vl_loss = auto()
-    last_vl_mse = auto()
-    last_tr_loss = auto()
-    last_tr_mse = auto()
+    loss_vl_last = auto()
+    mse_vl_last = auto()
+    loss_tr_last = auto()
+    mse_tr_last = auto()
     accuracy = auto()
     epochs_done = auto()
