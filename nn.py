@@ -511,7 +511,7 @@ class NeuralNet:
         np.savetxt(validate_error_path, validate_errors[:epoch+1], delimiter=',')  # saves on file history of vl misc rates
 
         import matplotlib.patches as mpatches
-        f, ax = plt.subplots(1)
+        fig, ax = plt.subplots(1)
         # todo: explain: why specify [:epoch+1]
         ax.plot(validate_errors[:epoch+1], label='validation errors')
         ax.plot(train_errors[:epoch+1], label='training errors')
@@ -529,7 +529,11 @@ class NeuralNet:
         # todo: evaluate on monk test set files
 
         error_graph_path = os.path.join(self.net_dir, 'errors.png')
-        plt.savefig(error_graph_path)
+        try:
+            plt.savefig(error_graph_path)
+            plt.close(fig)
+        except Exception as e:
+            print(f'Unable to save plot to image file: {error_graph_path}')
 
         return best_tr_error, epochs_done
 
