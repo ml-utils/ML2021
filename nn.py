@@ -227,12 +227,16 @@ class NeuralNet:
         self.scale_vector = None    # placeholder for internal validation set
 
         base_dir = os.getcwd()
-        if 'dir' in kwargs.keys():
-            self.net_dir = os.path.join(base_dir, kwargs['dir'])
-
+        if 'grid_search_dir' in kwargs:
+            grid_search_dir = kwargs.get('grid_search_dir')# kwargs['grid_search_dir']
         else:
-            cur_time = datetime.now().strftime("%Y%m%d-%H%M%S")
-            self.net_dir = os.path.join(base_dir, cur_time)
+            grid_search_dir = ''
+
+        if 'dir' in kwargs:  #.keys()
+            trial_dir = kwargs['dir']
+        else:
+            trial_dir = datetime.now().strftime("%Y%m%d-%H%M%S")
+        self.net_dir = os.path.join(base_dir, grid_search_dir, trial_dir)
 
         # save the starting conditions, if random:
         self.savestate(0)

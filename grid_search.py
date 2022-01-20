@@ -2,6 +2,9 @@
 from datetime import datetime
 from itertools import product
 import os.path
+import statistics
+import csv
+from decimal import Decimal
 
 # Third party imports
 import numpy as np
@@ -133,14 +136,23 @@ def do_grid_search(cfg):
             HP.ERROR_FN: error_fn,
             HP.EARLY_STOP_ALG: early_stopping_alg,
         }
+        group_of_trial_repeats = []
         for repeat in range(repeats_per_trial):
-            trial_name = "trial-%d.%d" % (session_num+1, repeat+1)
+            session_name = f'session-{session_num+1}'
+            trial_name = f"trial-{session_num+1}.{repeat+1}"
             print(f'--- Starting trial: {trial_name} of {total_sessions} x {repeats_per_trial} (cfgs x repeats)')
             print({h.name: hparams[h] for h in hparams})
-            run_trial(cfg, 'logs/hparam_tuning/', grid_search_name, trial_name, hparams)
 
-            # todo: for each grup of repeats, do aggregate results of median and sd of the results
-            #  save in a separate csv file with -aggregate suffix
+            grid_search_logdir = 'logs/hparam_tuning/'
+            trial_results = run_trial(cfg, grid_search_logdir, grid_search_name, trial_name, hparams)
+            group_of_trial_repeats.append(trial_results)
+            append_trial_info_to_report(grid_search_logdir, grid_search_name, cfg[CFG.DATASET_FILENAME], trial_name,
+                                        hparams, trial_results)
+
+        aggregated_results = get_aggregate_results(group_of_trial_repeats, hparams)
+        # print(f'aggregated_results: {aggregated_results}')
+        append_trial_info_to_report(grid_search_logdir, grid_search_name, cfg[CFG.DATASET_FILENAME], session_name,
+                                    hparams, aggregated_results, file_suffix='-aggregate')
         session_num += 1
 
     # todo: for each CV fold, do 3-5 trials, then calculate mean and sd of metric (training loss)
@@ -156,7 +168,55 @@ def do_grid_search(cfg):
     # % tensorboard - -logdir logs / hparam_tuning
 
 
-def run_trial(cfg, log_dir, grid_search_name, trial_name, hparams, ):
+def get_aggregate_results(group_of_trial_repeats, hparams):
+    # todo, check: currently median of each metric is calculated independently, therefore
+    #  the trial that shows the median mse_tr might not be the same with the median mse_vl
+    aggregated_results = dict()
+
+    results_to_aggregate = [metric_name.name for metric_name in RES]
+    '''results_to_aggregate = [
+        RES.mse_vl_last.name,
+        RES.mse_tr_last.name,
+        RES.accuracy.name,
+        RES.epochs_done.name,
+        RES.loss_vl_last.name,
+        RES.loss_tr_last.name,
+    ]'''
+    actual_keys_in_results = group_of_trial_repeats[0].keys()
+    print(f'group_of_trial_repeats[0]: {group_of_trial_repeats[0]}')
+    for metric in list(results_to_aggregate):
+        if metric not in actual_keys_in_results:
+            # print(f'aggregating results: metric {metric} not found in {actual_keys_in_results}')
+            results_to_aggregate.remove(metric)
+
+    for numeric_metric in results_to_aggregate:
+        values = []
+        metric_is_decimal = False
+        for trial_results in group_of_trial_repeats:
+            if numeric_metric != RES.crashed.name:
+                if type(trial_results[numeric_metric]) == float:
+                    trial_results[numeric_metric] = f'{trial_results[numeric_metric]:0.3f}'
+                if type(trial_results[numeric_metric]) == str:
+                    trial_results[numeric_metric] = Decimal(trial_results[numeric_metric])
+                values.append(trial_results[numeric_metric])
+                metric_is_decimal = True
+        if metric_is_decimal:
+            aggregated_results[numeric_metric + '-median'] = f'{statistics.median(values):0.3f}'
+            aggregated_results[numeric_metric + '-sd'] = f'{statistics.stdev(values):0.3f}'
+
+    crashed_trials_in_session = 0
+    for trial_results in group_of_trial_repeats:
+        if trial_results[RES.crashed.name]:
+            crashed_trials_in_session += 1
+
+    aggregated_results['trials'] = len(group_of_trial_repeats)
+    aggregated_results['crashes'] = crashed_trials_in_session
+
+    print(f'aggregated_results: {aggregated_results}')
+    return aggregated_results
+
+
+def run_trial(cfg, grid_search_logdir, grid_search_name, trial_name, hparams, ):
 
     # trial_dir = os.path.join(log_dir, trial_name)
     # todo: might be better to just export the grid search results to a csv file and visualize it with excel
@@ -166,28 +226,31 @@ def run_trial(cfg, log_dir, grid_search_name, trial_name, hparams, ):
 
     if cfg[CFG.MODEL_TYPE] == 'monk_custom_nn':
 
-        best_tr_error, epochs_done, final_validation_error, accuracy = train_test_custom_nn(hparams, cfg, trial_name)
+        best_tr_error, epochs_done, final_validation_error, accuracy, crashed \
+            = train_test_custom_nn(hparams, cfg, trial_name=trial_name, grid_search_name=grid_search_name)
         results = {
-            RES.mse_vl_last: final_validation_error,
-            RES.mse_tr_last: best_tr_error,
-            RES.accuracy: accuracy,
-            RES.epochs_done: epochs_done
+            RES.mse_vl_last.name: final_validation_error,
+            RES.mse_tr_last.name: best_tr_error,
+            RES.accuracy.name: accuracy,
+            RES.epochs_done.name: epochs_done,
+            RES.crashed.name: crashed,
         }
     elif cfg[CFG.MODEL_TYPE] == 'airfoil_tf':
         metrics_results, history = train_test_model_tf(hparams, cfg)
         results = {
-            RES.loss_vl_last: history.history['val_loss'][-1],
-            RES.mse_vl_last: history.history['val_mse'][-1],
-            RES.loss_tr_last: metrics_results['loss'],
-            RES.mse_tr_last: metrics_results['mse'],
-            RES.epochs_done: len(history.history['loss'])
+            RES.loss_vl_last.name: history.history['val_loss'][-1],
+            RES.mse_vl_last.name: history.history['val_mse'][-1],
+            RES.loss_tr_last.name: metrics_results['loss'],
+            RES.mse_tr_last.name: metrics_results['mse'],
+            RES.epochs_done.name: len(history.history['loss'])
         }
 
     print('results: ', for_print(results))
-    append_trial_info_to_report(log_dir, grid_search_name, cfg[CFG.DATASET_FILENAME], trial_name, hparams, results)
+    return results
 
 
 def for_print(dct):
+    dct = dct.copy()
     round_decimals_in_dict(dct)
     shorten_dict_keynames(dct)
     return dct
@@ -207,15 +270,18 @@ def round_decimals_in_dict(dct):
             dct[key] = "{:0.3f}".format(value)
 
 
-def append_trial_info_to_report(trial_dir, grid_search_name, dataset_filename, trial_name, hparams, results):
-    import csv
-    file_abs_path = os.path.join(trial_dir, grid_search_name + '-' + dataset_filename + '.csv')
+def append_trial_info_to_report(trial_dir, grid_search_name, dataset_filename, trial_name, hparams, results,
+                                file_suffix=''):
+    # todo fixme: some number apperaing incorrectly in excel sometimes
+    # todo fixme: some trials go into numerical overflow errors while doing backprop: check with which params
+
+    file_abs_path = os.path.join(trial_dir, grid_search_name + '-' + dataset_filename + file_suffix + '.csv')
 
     trial_info = {'trial': trial_name}
     trial_info.update(hparams)
     trial_info.update(results)
 
-    print(f'appending trial results to {file_abs_path}')
+    print(f'appending {trial_name} results to {file_abs_path}')
     file_already_exists = os.path.exists(file_abs_path)
     write_mode = 'a' if file_already_exists else 'w'
     # shortening field names for csv readability
@@ -233,7 +299,7 @@ def append_trial_info_to_report(trial_dir, grid_search_name, dataset_filename, t
         print("I/O error")
 
 
-def train_test_custom_nn(hparams, cfg, trial_name=''):
+def train_test_custom_nn(hparams, cfg, trial_name='', grid_search_name=''):
     root_dir = os.getcwd()
     filename = cfg[CFG.DATASET_FILENAME]
     file_path = os.path.join(root_dir, cfg[CFG.DATASET_DIR], filename)
@@ -270,9 +336,10 @@ def train_test_custom_nn(hparams, cfg, trial_name=''):
     early_stopping_alg = hparams[HP.EARLY_STOP_ALG]  # 'MSE2_val'
 
     cur_time = datetime.now().strftime("%Y%m%d-%H%M%S")
-    trial_subdir = cur_time + trial_name
+    trial_subdir = cur_time + '-' + trial_name
+    print(f'train_test_custom_nn passing to NeuralNet: grid_search_dir= {grid_search_name}')
     test_net = NeuralNet(activation, net_shape, eta=lr, alpha=alpha_momentum, lamda=lambda_reg, mb=mini_batch_size,
-                         task=task, verbose=True, dir=dir)
+                         task=task, verbose=True, dir=trial_subdir, grid_search_dir=grid_search_name)
 
     test_net.load_training(data[:split_id], out_dim, do_normalization=False)
     test_net.load_validation(data[split_id:], out_dim)
@@ -286,9 +353,20 @@ def train_test_custom_nn(hparams, cfg, trial_name=''):
     print('net initialized at {}'.format(start_time))
     print(f'initial validation_error = {test_net.validate_net()[0]:0.3f}')
 
-    best_tr_error, epochs_done = test_net.batch_training(threshold=stopping_threshold, max_epochs=max_epochs,
+    try:
+        best_tr_error, epochs_done = test_net.batch_training(threshold=stopping_threshold, max_epochs=max_epochs,
                                                          stopping=early_stopping_alg, patience=patience,
                                                          verbose=False, hyperparams_for_plot=hyperparams_descr)
+        crashed = False
+    except Exception as e:
+        # todo: also fix/handle these cases (not actually Exceptions, just warnings, but the results
+        # RuntimeWarning: overflow encountered in matmul: nextlayer_dEp_dOt = np.matmul(self.weights.transpose(), dEp_dOt)
+        # RuntimeWarning: overflow encountered in double_scalars
+        # RuntimeWarning: invalid value encountered in multiply
+        print(f'batch_training failed with error: {e}')
+        crashed = True
+        best_tr_error, epochs_done = None, None
+
     end_time = datetime.now()
     print('training completed at {} ({} elapsed)'.format(end_time, end_time - start_time))
     final_validation_error, accuracy, vl_misc_rate = test_net.validate_net()
@@ -296,10 +374,10 @@ def train_test_custom_nn(hparams, cfg, trial_name=''):
     print(f'final validation accuracy = {accuracy:0.3f}')
 
     # todo: plot actual vs predicted (as accuracy and as MSE smoothing function)
-    return best_tr_error, epochs_done, final_validation_error, accuracy
+    return best_tr_error, epochs_done, final_validation_error, accuracy, crashed
 
 
 if __name__ == '__main__':
-    do_grid_search(MONK1_CUSTOM_NET_CFG)
-    do_grid_search(MONK2_CUSTOM_NET_CFG)
     do_grid_search(MONK3_CUSTOM_NET_CFG)
+    do_grid_search(MONK2_CUSTOM_NET_CFG)
+    do_grid_search(MONK1_CUSTOM_NET_CFG)
