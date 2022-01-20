@@ -1,10 +1,16 @@
-import numpy as np
+from time import sleep
 from json import dump
-import matplotlib.pyplot as plt
-from numpy.random import default_rng
 from datetime import datetime
 from shutil import rmtree, copytree
 import os
+import gc
+
+from guppy import hpy
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from numpy.random import default_rng
+import numpy as np
+
 
 # Activation functions, each followed by their respective derivatives;
 # derivatives are expressed as function of the resulting outputs to simplify computations
@@ -196,6 +202,7 @@ class NeuralNet:
                 lay = Layer(units[i], units[i+1], activation)
                 self.layers.append(lay)
 
+            self.task = task
             self.layers[-1].switch_role_to_out_layer(task)
 
         self.layers_weights_best_epoch = []
@@ -226,12 +233,16 @@ class NeuralNet:
         self.scale_vector = None    # placeholder for internal validation set
 
         base_dir = os.getcwd()
-        if 'dir' in kwargs.keys():
-            self.net_dir = os.path.join(base_dir, kwargs['dir'])
-
+        if 'grid_search_dir' in kwargs:
+            grid_search_dir = kwargs.get('grid_search_dir')# kwargs['grid_search_dir']
         else:
-            cur_time = datetime.now().strftime("%Y%m%d-%H%M%S")
-            self.net_dir = os.path.join(base_dir, cur_time)
+            grid_search_dir = ''
+
+        if 'dir' in kwargs:  #.keys()
+            trial_dir = kwargs['dir']
+        else:
+            trial_dir = datetime.now().strftime("%Y%m%d-%H%M%S")
+        self.net_dir = os.path.join(base_dir, grid_search_dir, trial_dir)
 
         # save the starting conditions, if random:
         self.savestate(0)
@@ -479,10 +490,10 @@ class NeuralNet:
                 print('epoch train error: ', train_errors[epoch])
             if not epoch % 100: # prints training status on console every 100 epochs
                 self.savestate(epoch)
-                print(f'epoch {epoch} done (tr error = {train_errors[epoch]}, tr patterns: {example_number}, '
-                      f' actual_used_tr_patterms: {actual_used_tr_patterms}, '
-                      f'val error = {validate_errors[epoch]}, val patterns: {self.validation_set.shape[0]}, '
-                      f'accuracy = {accuracy})')
+                print(f'epoch {epoch} done (tr error = {train_errors[epoch]:.3f}, tr patterns: {example_number} '
+                      f'(of which used: {actual_used_tr_patterms}), '
+                      f'val error = {validate_errors[epoch]:.3f}, val patterns: {self.validation_set.shape[0]}, '
+                      f'accuracy = {accuracy:.3f})')
 
             # check for stopping conditions
             if self.should_stop_training(stopping, threshold, max_epochs, epoch, best_epoch_for_stopping, patience,
@@ -509,27 +520,8 @@ class NeuralNet:
         validate_error_path = os.path.join(self.net_dir, 'vl_misclassification_rates.csv')
         np.savetxt(validate_error_path, validate_errors[:epoch+1], delimiter=',')  # saves on file history of vl misc rates
 
-        import matplotlib.patches as mpatches
-        f, ax = plt.subplots(1)
-        # todo: explain: why specify [:epoch+1]
-        ax.plot(validate_errors[:epoch+1], label='validation errors')
-        ax.plot(train_errors[:epoch+1], label='training errors')
-        ax.plot(vl_misclassification_rates[:epoch + 1], label='vl misclassification rates')
-        plt.xlabel('epoch')
-
-        y_axis_label = 'MSE / miscl rate' if self.task == 'classification' else self.error_func
-        plt.ylabel(y_axis_label)
-
-        handles, labels = ax.get_legend_handles_labels()
-        handles.append(mpatches.Patch(color='none', label=hyperparams_for_plot))
-        ax.legend(handles=handles)
-
-        # todo: plot of accuracy metric (misclassification rate)
-        # todo: evaluate on monk test set files
-
-        error_graph_path = os.path.join(self.net_dir, 'errors.png')
-        plt.savefig(error_graph_path)
-
+        NeuralNet.plot_learning_curve_to_img_file(validate_errors, train_errors, vl_misclassification_rates, epoch,
+                                             hyperparams_for_plot, self.task, self.error_func, self.net_dir)
         return best_tr_error, epochs_done
 
     def should_stop_training(self, stopping, threshold, max_epochs, epoch, best_epoch_for_stopping, patience,
@@ -616,6 +608,38 @@ class NeuralNet:
         return error_smooth, accu, misclassification_rate
 
 
+    @staticmethod
+    def plot_learning_curve_to_img_file(validate_errors, train_errors, vl_misclassification_rates, epoch,
+                                        hyperparams_for_plot, learning_task, error_func, net_dir):
+        fig, ax = plt.subplots(1)
+        # todo: explain: why specify [:epoch+1]
+        ax.plot(validate_errors[:epoch+1], label='validation errors')
+        ax.plot(train_errors[:epoch+1], label='training errors')
+        ax.plot(vl_misclassification_rates[:epoch + 1], label='vl misclassification rates')
+        plt.xlabel('epoch')
+
+        y_axis_label = 'MSE / miscl rate' if learning_task == 'classification' else error_func
+        plt.ylabel(y_axis_label)
+
+        handles, labels = ax.get_legend_handles_labels()
+        handles.append(mpatches.Patch(color='none', label=hyperparams_for_plot))
+        ax.legend(handles=handles)
+
+        # todo: plot of accuracy metric (misclassification rate)
+        # todo: evaluate on monk test set files
+
+        error_graph_path = os.path.join(net_dir, 'errors.png')
+        try:
+            plt.savefig(error_graph_path)
+            fig.clear()
+            plt.close(fig) # plt.close('all')
+            # print(f'Currently there are {plt.get_fignums()} pyplot figures.')
+            # print(hpy().heap())
+        except Exception as e:
+            print(f'Unable to save plot to image file: {error_graph_path}')
+        gc.collect()
+
+
 if __name__ == '__main__':
     # trains basic neural network on the airfoil dataset
     root_dir = os.getcwd()
@@ -636,8 +660,8 @@ if __name__ == '__main__':
 
     start_time = datetime.now()
     print('net initialized at {}'.format(start_time))
-    print('initial validation_error = {}'.format(test_net.validate_net()[0]))
+    print(f'initial validation_error = {test_net.validate_net()[0]:.3f}')
     test_net.batch_training()
     end_time = datetime.now()
     print('training completed at {} ({} elapsed)'.format(end_time, end_time-start_time))
-    print('final validation_error = {}'.format(test_net.validate_net()[0]))
+    print(f'final validation_error = {test_net.validate_net()[0]}')

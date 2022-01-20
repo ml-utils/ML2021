@@ -7,14 +7,14 @@ class AutoName(Enum):
 
 
 class HP(AutoName):
-    NUM_UNITS_PER_HID_LAYER = auto()
-    NUM_HID_LAYERS = auto()
+    UNITS_PER_LAYER = auto()
+    N_HID_LAYERS = auto()
     ACTIV_FUN = auto()
     OPTIMIZER = auto()
-    LEARNING_RATE = auto()
+    LR = auto()
     MOMENTUM = auto()
     LAMBDA_L2 = auto()
-    MINI_BATCH_SIZE = auto()
+    MB = auto()
     STOPPING_THRESH = auto()
     EARLY_STOP_ALG = auto()
     PATIENCE = auto()
@@ -30,12 +30,16 @@ class CFG(AutoName):
     OUT_DIM = auto()
     INPUT_DIM = auto()
     TASK_TYPE = auto()
+    DATASET_FILENAME = auto()
+    DATASET_DIR = auto()
+    MODEL_TYPE = auto()
 
 
 class RES(AutoName):
-    last_vl_loss = auto()
-    last_vl_mse = auto()
-    last_tr_loss = auto()
-    last_tr_mse = auto()
+    loss_vl_last = auto()
+    mse_vl_last = auto()
+    loss_tr_last = auto()
+    mse_tr_last = auto()
     accuracy = auto()
     epochs_done = auto()
+    crashed = auto()
