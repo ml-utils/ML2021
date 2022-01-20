@@ -1,4 +1,5 @@
 from time import sleep
+from json import dump
 from datetime import datetime
 from shutil import rmtree, copytree
 import os
@@ -13,13 +14,6 @@ import numpy as np
 
 # Activation functions, each followed by their respective derivatives;
 # derivatives are expressed as function of the resulting outputs to simplify computations
-
-
-def threshold_basic(x):  # nb: the derivative of this is not used because it's zero and we need a smoothing fn for classification
-    if x >= 0.5:
-        return 1
-    else:
-        return 0
 
 def linear(x):
     return x
@@ -119,21 +113,19 @@ class Layer:
             self.activation = np.vectorize(linear)
             self.derivative = np.vectorize(linearprime)
         if task == 'classification':
-            self.activation = np.vectorize(threshold_basic)  # threshold_basic
-            self.derivative = np.vectorize(linearprime)
+            self.activation = np.vectorize(sigmoid)  # threshold_basic
+            self.derivative = np.vectorize(sigmprime)
             # (todo check this is correct) in classification, we optimize the loss as MSE because it is differentiable,
             #   so we use the derivative of the linear fn
 
     # evaluate(): evaluates input using current weights and stores input, net and output as class attributes
     # for later training
-    def evaluate(self, entry, use_netx_instead_of_hx=False):
+    def evaluate(self, entry):
         self.latest_in[:-1] = entry
         self.latest_net = np.matmul(self.weights, self.latest_in)
-        if use_netx_instead_of_hx:
-            return self.latest_net  # nb: no activation function, in classification error fn uses w*x not h(x)
-        else:
-            self.latest_out = self.activation(self.latest_net)
-            return self.latest_out
+        self.latest_out = self.activation(self.latest_net)
+
+        return self.latest_out
 
     # calc_local_gradient: calculates the layer's local gradient for the latest output according to
     # the back-propagating error signal from the next unit (? unit = neuron, layer, or sample?),
@@ -216,13 +208,22 @@ class NeuralNet:
         self.layers_weights_best_epoch = []
         self.save_layers_weights_best_epoch()
 
-        self.error_func = error # error function
+        self.task = task
+        self.error_func = error  # error function
         self.eta = eta  # learning rate
         self.alpha = alpha  # momentum parameter
         self.lamda = lamda  # regularization parameter
         self.mb = mb # number of patterns in each mini-batch
         self.batch_SE = 0 # squared error on latest mini-batch
         self.epoch_SE = 0 # squared error on latest epoch
+
+        self.hyperparameters = {'task': self.task, 'error': self.error_func, 'hidden activation': activation,
+                                'eta': self.eta, 'alpha': self.alpha, 'lambda': self.lamda, 'mb': self.mb}
+        if self.task == 'classification':
+            self.hyperparameters['output activation'] = 'sigmoid'
+
+        elif self.task == 'regression':
+            self.hyperparameters['output activation'] = 'linear'
 
         self.validation_set = None  # placeholder for internal validation set
         self.training_set = None    # placeholder for internal training set
@@ -346,16 +347,11 @@ class NeuralNet:
     # internally-stored data such as training and validation sets; for external data such as assessment sets or
     # deployment data use self.evaluate()
 
-    def internal_evaluate(self, entry, use_netx_instead_of_hx=False):
+    def internal_evaluate(self, entry):
 
         for lay in self.layers:
-            is_last_layer = lay == self.layers[-1]
-            if not is_last_layer:
-                entry = lay.evaluate(entry)
-            else:
-                # if not use_netx_instead_of_hx:
-                #   print('using activation/threshold fun in last layer')
-                entry = lay.evaluate(entry, use_netx_instead_of_hx=use_netx_instead_of_hx)
+            entry = lay.evaluate(entry)
+
         return entry
 
     # evaluate: evaluates non-normalized (original format) inputs and returns non-normalized outputs
@@ -374,8 +370,7 @@ class NeuralNet:
 
     # pattern_update: evaluate input using current weights, then back-propagates error through the entire network
     def pattern_update(self, entry, label, verbose=False):
-        use_netx_instead_of_hx = self.task == 'classification'  #
-        output = self.internal_evaluate(entry, use_netx_instead_of_hx=use_netx_instead_of_hx)
+        output = self.internal_evaluate(entry)
         error_pattern = output - label  # NB. dEp_dOt is one of the terms of the error signal delta_t (for each unit t)
         # print(f'{round(np.asscalar(output), 2)}; ', end=' ')
         if type(error_pattern) is np.ndarray:
@@ -408,7 +403,7 @@ class NeuralNet:
     def update_weights(self):
 
         for layer in self.layers:
-            layer.update_weights(self.eta, self.alpha, self.lamda)
+            layer.update_weights(self.eta/self.mb, self.alpha/self.mb, self.lamda/self.mb)
 
     # splits training data into batches; returns an iterable
     # NOTE: if self.mb isn't a multiple of the number of training examples the last few will be left out of training
@@ -508,6 +503,16 @@ class NeuralNet:
         best_tr_error = train_errors[best_epoch_for_stopping]
         epochs_done = best_epoch_for_stopping
 
+        summary_path = os.path.join(self.net_dir, 'net_summary.json')
+        summary = {'hyperparameters': self.hyperparameters, 'training errors': train_errors[:epoch+1].tolist(),
+                   'validation errors': validate_errors[:epoch+1].tolist()}
+
+        if self.task == 'classification':
+            summary['misclassification'] = vl_misclassification_rates[:epoch+1].tolist()
+
+        with open(summary_path, 'w') as outfile:
+            dump(summary, outfile)
+
         train_error_path = os.path.join(self.net_dir, 'training_errors.csv')
         np.savetxt(train_error_path, train_errors[:epoch+1], delimiter=';')  # saves history of training errors on file
         validate_error_path = os.path.join(self.net_dir, 'validation_errors.csv')
@@ -568,11 +573,10 @@ class NeuralNet:
             x = example[:self.fan_in]
             y = example[-self.fan_out:]
 
-            if self.task == 'regression':
-                predicted_y = self.internal_evaluate(x)
+            predicted_y = self.internal_evaluate(x)
+
             if self.task == 'classification':
-                predicted_y = self.internal_evaluate(x, use_netx_instead_of_hx=True)
-                discretized_predicted_y = self.internal_evaluate(x, use_netx_instead_of_hx=False)
+                discretized_predicted_y = np.around(predicted_y)
             # print(f'predicted y:  {predicted_y}, thresholded_predicted_y: {thresholded_predicted_y}, actual y: {y}')
             validation_predicted_outs.append(np.asscalar(predicted_y))
             if type(y) is np.ndarray:
