@@ -70,15 +70,15 @@ def run_nn_only_classification():
     train_ratio = 0.813
     split_id = int(np.round(example_number * train_ratio))
     print(f'doing {split_id} samples for training, and {example_number - split_id} for validation')
-    mini_batch_size = 1
+    mini_batch_size = 4
 
     print('dataset head after shuffling: ')
     print(data[:5])
     task = 'classification'
     activation = 'tanh'  # 'sigmoid' # 'tanh'
-    net_shape = [17, 10, 1]
-    lr = 0.05
-    alpha_momentum = 0.12
+    net_shape = [17, 5, 1]
+    lr = 1e-2
+    alpha_momentum = 5e-2
     lambda_reg = 0  # 0.001  # 0.005
     stopping_threshold = 0.00005
     max_epochs = 1500
@@ -196,4 +196,4 @@ if __name__ == '__main__':
     # todo: collect training history to plot learning curve
     # run_nn_and_tf()
     # run_nn_only_regression()
-    run_nn_only_regression()
+    run_nn_only_classification()

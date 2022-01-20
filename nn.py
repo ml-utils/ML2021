@@ -114,14 +114,12 @@ class Layer:
 
     # evaluate(): evaluates input using current weights and stores input, net and output as class attributes
     # for later training
-    def evaluate(self, entry, use_netx_instead_of_hx=False):
+    def evaluate(self, entry):
         self.latest_in[:-1] = entry
         self.latest_net = np.matmul(self.weights, self.latest_in)
-        if use_netx_instead_of_hx:
-            return self.latest_net  # nb: no activation function, in classification error fn uses w*x not h(x)
-        else:
-            self.latest_out = self.activation(self.latest_net)
-            return self.latest_out
+        self.latest_out = self.activation(self.latest_net)
+
+        return self.latest_out
 
     # calc_local_gradient: calculates the layer's local gradient for the latest output according to
     # the back-propagating error signal from the next unit (? unit = neuron, layer, or sample?),
@@ -338,16 +336,11 @@ class NeuralNet:
     # internally-stored data such as training and validation sets; for external data such as assessment sets or
     # deployment data use self.evaluate()
 
-    def internal_evaluate(self, entry, use_netx_instead_of_hx=False):
+    def internal_evaluate(self, entry):
 
         for lay in self.layers:
-            is_last_layer = lay == self.layers[-1]
-            if not is_last_layer:
-                entry = lay.evaluate(entry)
-            else:
-                # if not use_netx_instead_of_hx:
-                #   print('using activation/threshold fun in last layer')
-                entry = lay.evaluate(entry, use_netx_instead_of_hx=use_netx_instead_of_hx)
+            entry = lay.evaluate(entry)
+
         return entry
 
     # evaluate: evaluates non-normalized (original format) inputs and returns non-normalized outputs
@@ -366,8 +359,7 @@ class NeuralNet:
 
     # pattern_update: evaluate input using current weights, then back-propagates error through the entire network
     def pattern_update(self, entry, label, verbose=False):
-        use_netx_instead_of_hx = self.task == 'classification'  #
-        output = self.internal_evaluate(entry, use_netx_instead_of_hx=use_netx_instead_of_hx)
+        output = self.internal_evaluate(entry)
         error_pattern = output - label  # NB. dEp_dOt is one of the terms of the error signal delta_t (for each unit t)
         # print(f'{round(np.asscalar(output), 2)}; ', end=' ')
         if type(error_pattern) is np.ndarray:
@@ -589,11 +581,10 @@ class NeuralNet:
             x = example[:self.fan_in]
             y = example[-self.fan_out:]
 
-            if self.task == 'regression':
-                predicted_y = self.internal_evaluate(x)
+            predicted_y = self.internal_evaluate(x)
+
             if self.task == 'classification':
-                predicted_y = self.internal_evaluate(x, use_netx_instead_of_hx=True)
-                discretized_predicted_y = self.internal_evaluate(x, use_netx_instead_of_hx=False)
+                discretized_predicted_y = np.around(predicted_y)
             # print(f'predicted y:  {predicted_y}, thresholded_predicted_y: {thresholded_predicted_y}, actual y: {y}')
             validation_predicted_outs.append(np.asscalar(predicted_y))
             if type(y) is np.ndarray:
