@@ -31,9 +31,8 @@ MONK_CUSTOM_NET_HP_RANGES = {
     HP.N_HID_LAYERS: hp.HParam(HP.N_HID_LAYERS, hp.Discrete([1])),
     HP.OPTIMIZER: hp.HParam(HP.OPTIMIZER, hp.Discrete(['SGD constant lr'])),
     HP.LR: hp.HParam(HP.LR, hp.RealInterval(0.001, 0.1)),
-    HP.MOMENTUM: hp.HParam(HP.MOMENTUM, hp.Discrete([0.1, 0.5])),  # hp.RealInterval(0.5, 0.9)),
+    HP.MOMENTUM: hp.HParam(HP.MOMENTUM, hp.Discrete([0.01, 0.5])),  # hp.RealInterval(0.5, 0.9)),
     HP.LAMBDA_L2: hp.HParam(HP.LAMBDA_L2, hp.RealInterval(min_value=0.0001, max_value=0.1)),
-    # HP.DROPOUT: hp.HParam('dropout', hp.RealInterval(0.1, 0.2)),
     HP.MB: hp.HParam(HP.MB, hp.Discrete([1, 20])),
     HP.ACTIV_FUN: hp.HParam(HP.ACTIV_FUN, hp.Discrete(['tanh', 'sigmoid'])),
     HP.STOPPING_THRESH: hp.HParam(HP.STOPPING_THRESH, hp.Discrete([0.00005])),
@@ -41,6 +40,7 @@ MONK_CUSTOM_NET_HP_RANGES = {
     HP.MAX_EPOCHS: hp.HParam(HP.MAX_EPOCHS, hp.Discrete([1500])),
     HP.ERROR_FN: hp.HParam(HP.ERROR_FN, hp.Discrete(['MSE'])),  # MEE
     HP.EARLY_STOP_ALG: hp.HParam(HP.EARLY_STOP_ALG, hp.Discrete(['MSE2_val'])),
+    # HP.DROPOUT: hp.HParam('dropout', hp.RealInterval(0.1, 0.2)),
 }
 # remove from hyperparams:
 # ERROR_FN = tf.keras.losses.MeanSquaredError()
@@ -54,18 +54,46 @@ MONK_CUSTOM_NET_HP_RANGES = {
 
 HP_RANGES = MONK_CUSTOM_NET_HP_RANGES
 
-MONK_CUSTOM_NET_CFG = {
+MONK1_CUSTOM_NET_CFG = {
     CFG.OUT_DIM: 1,
     CFG.INPUT_DIM: 17,
-    CFG.TASK_TYPE: 'classification'
+    CFG.TASK_TYPE: 'classification',
+    CFG.MODEL_TYPE: 'monk_custom_nn',
+    CFG.DATASET_FILENAME: 'monks-1.train',
+    CFG.DATASET_DIR: '.\\datasplitting\\assets\\monk\\',
 }
 
+MONK2_CUSTOM_NET_CFG = {
+    CFG.OUT_DIM: 1,
+    CFG.INPUT_DIM: 17,
+    CFG.TASK_TYPE: 'classification',
+    CFG.MODEL_TYPE: 'monk_custom_nn',
+    CFG.DATASET_FILENAME: 'monks-2.train',
+    CFG.DATASET_DIR: '.\\datasplitting\\assets\\monk\\',
+}
 
-def main():
-    model_type = 'monk_custom_nn'
-    grid_search_name = cur_time = datetime.now().strftime("%Y%m%d-%H%M%S") + '-' + model_type
+MONK3_CUSTOM_NET_CFG = {
+    CFG.OUT_DIM: 1,
+    CFG.INPUT_DIM: 17,
+    CFG.TASK_TYPE: 'classification',
+    CFG.MODEL_TYPE: 'monk_custom_nn',
+    CFG.DATASET_FILENAME: 'monks-3.train',
+    CFG.DATASET_DIR: '.\\datasplitting\\assets\\monk\\',
+}
+
+# todo: pass dataset filename and trial name in the grid search to the batchtraining method to save
+# the error plot img file with a more descriptive name
+# todo: collect the plot images of the trials of a gridsearch all in the same folder
+# todo: aggregate the results of the multiple trial executions of the same configuration (same hyperparams);
+#  aggregate by best, mean or median
+# todo: optimize: load and preprocess the dataset once, then pass it to the gridsearch as a param
+
+
+def do_grid_search(cfg):
+    model_type = cfg[CFG.MODEL_TYPE]
+    grid_search_name = datetime.now().strftime("%Y%m%d-%H%M%S") + '-' + model_type
     session_num = 0
-    repeats_per_run = 3
+    repeats_per_trial = 5
     iters = [
         HP_RANGES[HP.UNITS_PER_LAYER].domain.values,
         HP_RANGES[HP.N_HID_LAYERS].domain.values,
@@ -105,18 +133,21 @@ def main():
             HP.ERROR_FN: error_fn,
             HP.EARLY_STOP_ALG: early_stopping_alg,
         }
-        for repeat in range(repeats_per_run):
-            run_name = "run-%d.%d" % (session_num+1, repeat+1)
-            print(f'--- Starting trial: {run_name} of {total_sessions} x {repeats_per_run} (cfgs x repeats)')
+        for repeat in range(repeats_per_trial):
+            trial_name = "trial-%d.%d" % (session_num+1, repeat+1)
+            print(f'--- Starting trial: {trial_name} of {total_sessions} x {repeats_per_trial} (cfgs x repeats)')
             print({h.name: hparams[h] for h in hparams})
-            run(model_type, 'logs/hparam_tuning/', grid_search_name, run_name, hparams, MONK_CUSTOM_NET_CFG)
+            run_trial(cfg, 'logs/hparam_tuning/', grid_search_name, trial_name, hparams)
+
+            # todo: for each grup of repeats, do aggregate results of median and sd of the results
+            #  save in a separate csv file with -aggregate suffix
         session_num += 1
 
-    # todo: for each CV fold, do 3-5 runs, then calculate mean and sd of metric (training loss)
+    # todo: for each CV fold, do 3-5 trials, then calculate mean and sd of metric (training loss)
     # todo: group repeat results for each session
     # todo: in metrics, check and label mse used in training vs validation
     #  check diff btw mse and batch_mse, btw historical vs final mse values
-    # repeat for each cv fold: total runs = num sessions x repeats x folds
+    # repeat for each cv fold: total trials = num sessions x repeats x folds
     # todo: explicit use of alghorithm for weights and bias initialization
     # todo: saving initializations, so can be reused the same for each session (and there are as many as the repeats)
     # todo: make a custom normalizer/denormalizer for output targets
@@ -125,24 +156,24 @@ def main():
     # % tensorboard - -logdir logs / hparam_tuning
 
 
-def run(model_type, log_dir, grid_search_name, run_name, hparams, cfg):
+def run_trial(cfg, log_dir, grid_search_name, trial_name, hparams, ):
 
-    run_dir = os.path.join(log_dir, run_name)
+    # trial_dir = os.path.join(log_dir, trial_name)
     # todo: might be better to just export the grid search results to a csv file and visualize it with excel
     # todo: what about the plots? the auto generated png files should have some id to recognize the trial
-        # with tf.summary.create_file_writer(run_dir).as_default():
-        #hp.hparams(hparams, trial_id=run_name)  # Write hyperparameter values (on the report file) for a single trial.
+        # with tf.summary.create_file_writer(trial_dir).as_default():
+        #hp.hparams(hparams, trial_id=trial_name)  # Write hyperparameter values (on the report file) for a single trial.
 
-    if model_type == 'monk_custom_nn':
+    if cfg[CFG.MODEL_TYPE] == 'monk_custom_nn':
 
-        best_tr_error, epochs_done, final_validation_error, accuracy = train_test_custom_nn(hparams, cfg)
+        best_tr_error, epochs_done, final_validation_error, accuracy = train_test_custom_nn(hparams, cfg, trial_name)
         results = {
             RES.mse_vl_last: final_validation_error,
             RES.mse_tr_last: best_tr_error,
             RES.accuracy: accuracy,
             RES.epochs_done: epochs_done
         }
-    elif model_type == 'airfoil_tf':
+    elif cfg[CFG.MODEL_TYPE] == 'airfoil_tf':
         metrics_results, history = train_test_model_tf(hparams, cfg)
         results = {
             RES.loss_vl_last: history.history['val_loss'][-1],
@@ -153,7 +184,7 @@ def run(model_type, log_dir, grid_search_name, run_name, hparams, cfg):
         }
 
     print('results: ', for_print(results))
-    append_trial_info_to_report(log_dir, grid_search_name, run_name, hparams, results)
+    append_trial_info_to_report(log_dir, grid_search_name, cfg[CFG.DATASET_FILENAME], trial_name, hparams, results)
 
 
 def for_print(dct):
@@ -176,11 +207,11 @@ def round_decimals_in_dict(dct):
             dct[key] = "{:0.3f}".format(value)
 
 
-def append_trial_info_to_report(run_dir, grid_search_name, run_name, hparams, results):
+def append_trial_info_to_report(trial_dir, grid_search_name, dataset_filename, trial_name, hparams, results):
     import csv
-    file_abs_path = os.path.join(run_dir, grid_search_name + '.csv')
+    file_abs_path = os.path.join(trial_dir, grid_search_name + '-' + dataset_filename + '.csv')
 
-    trial_info = {'trial': run_name}
+    trial_info = {'trial': trial_name}
     trial_info.update(hparams)
     trial_info.update(results)
 
@@ -202,10 +233,10 @@ def append_trial_info_to_report(run_dir, grid_search_name, run_name, hparams, re
         print("I/O error")
 
 
-def train_test_custom_nn(hparams, cfg):
+def train_test_custom_nn(hparams, cfg, trial_name=''):
     root_dir = os.getcwd()
-    filename = 'monks-2.train'
-    file_path = os.path.join(root_dir, '.\\datasplitting\\assets\\monk\\', filename)
+    filename = cfg[CFG.DATASET_FILENAME]
+    file_path = os.path.join(root_dir, cfg[CFG.DATASET_DIR], filename)
 
     data = load_and_preprocess_monk_dataset(file_path)
 
@@ -238,8 +269,10 @@ def train_test_custom_nn(hparams, cfg):
     optimizer = hparams[HP.OPTIMIZER]  # 'SGD constant lr'
     early_stopping_alg = hparams[HP.EARLY_STOP_ALG]  # 'MSE2_val'
 
+    cur_time = datetime.now().strftime("%Y%m%d-%H%M%S")
+    trial_subdir = cur_time + trial_name
     test_net = NeuralNet(activation, net_shape, eta=lr, alpha=alpha_momentum, lamda=lambda_reg, mb=mini_batch_size,
-                         task=task, verbose=True)
+                         task=task, verbose=True, dir=dir)
 
     test_net.load_training(data[:split_id], out_dim, do_normalization=False)
     test_net.load_validation(data[split_id:], out_dim)
@@ -267,4 +300,6 @@ def train_test_custom_nn(hparams, cfg):
 
 
 if __name__ == '__main__':
-    main()
+    do_grid_search(MONK1_CUSTOM_NET_CFG)
+    do_grid_search(MONK2_CUSTOM_NET_CFG)
+    do_grid_search(MONK3_CUSTOM_NET_CFG)

@@ -30,6 +30,9 @@ class CFG(AutoName):
     OUT_DIM = auto()
     INPUT_DIM = auto()
     TASK_TYPE = auto()
+    DATASET_FILENAME = auto()
+    DATASET_DIR = auto()
+    MODEL_TYPE = auto()
 
 
 class RES(AutoName):

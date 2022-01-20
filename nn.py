@@ -211,7 +211,6 @@ class NeuralNet:
         self.layers_weights_best_epoch = []
         self.save_layers_weights_best_epoch()
 
-
         self.error_func = error # error function
         self.eta = eta  # learning rate
         self.alpha = alpha  # momentum parameter
