@@ -1,5 +1,5 @@
 import numpy as np
-from time import sleep
+from json import dump
 import matplotlib.pyplot as plt
 from numpy.random import default_rng
 from datetime import datetime
@@ -8,13 +8,6 @@ import os
 
 # Activation functions, each followed by their respective derivatives;
 # derivatives are expressed as function of the resulting outputs to simplify computations
-
-
-def threshold_basic(x):  # nb: the derivative of this is not used because it's zero and we need a smoothing fn for classification
-    if x >= 0.5:
-        return 1
-    else:
-        return 0
 
 def linear(x):
     return x
@@ -114,8 +107,8 @@ class Layer:
             self.activation = np.vectorize(linear)
             self.derivative = np.vectorize(linearprime)
         if task == 'classification':
-            self.activation = np.vectorize(threshold_basic)  # threshold_basic
-            self.derivative = np.vectorize(linearprime)
+            self.activation = np.vectorize(sigmoid)  # threshold_basic
+            self.derivative = np.vectorize(sigmprime)
             # (todo check this is correct) in classification, we optimize the loss as MSE because it is differentiable,
             #   so we use the derivative of the linear fn
 
@@ -205,20 +198,27 @@ class NeuralNet:
                 lay = Layer(units[i], units[i+1], activation)
                 self.layers.append(lay)
 
-            self.task = task
             self.layers[-1].switch_role_to_out_layer(task)
 
         self.layers_weights_best_epoch = []
         self.save_layers_weights_best_epoch()
 
-
-        self.error_func = error # error function
+        self.task = task
+        self.error_func = error  # error function
         self.eta = eta  # learning rate
         self.alpha = alpha  # momentum parameter
         self.lamda = lamda  # regularization parameter
         self.mb = mb # number of patterns in each mini-batch
         self.batch_SE = 0 # squared error on latest mini-batch
         self.epoch_SE = 0 # squared error on latest epoch
+
+        self.hyperparameters = {'task': self.task, 'error': self.error_func, 'hidden activation': activation,
+                                'eta': self.eta, 'alpha': self.alpha, 'lambda': self.lamda, 'mb': self.mb}
+        if self.task == 'classification':
+            self.hyperparameters['output activation'] = 'sigmoid'
+
+        elif self.task == 'regression':
+            self.hyperparameters['output activation'] = 'linear'
 
         self.validation_set = None  # placeholder for internal validation set
         self.training_set = None    # placeholder for internal training set
@@ -400,7 +400,7 @@ class NeuralNet:
     def update_weights(self):
 
         for layer in self.layers:
-            layer.update_weights(self.eta, self.alpha, self.lamda)
+            layer.update_weights(self.eta/self.mb, self.alpha/self.mb, self.lamda/self.mb)
 
     # splits training data into batches; returns an iterable
     # NOTE: if self.mb isn't a multiple of the number of training examples the last few will be left out of training
@@ -499,6 +499,16 @@ class NeuralNet:
 
         best_tr_error = train_errors[best_epoch_for_stopping]
         epochs_done = best_epoch_for_stopping
+
+        summary_path = os.path.join(self.net_dir, 'net_summary.json')
+        summary = {'hyperparameters': self.hyperparameters, 'training errors': train_errors[:epoch+1].tolist(),
+                   'validation errors': validate_errors[:epoch+1].tolist()}
+
+        if self.task == 'classification':
+            summary['misclassification'] = vl_misclassification_rates[:epoch+1].tolist()
+
+        with open(summary_path, 'w') as outfile:
+            dump(summary, outfile)
 
         train_error_path = os.path.join(self.net_dir, 'training_errors.csv')
         np.savetxt(train_error_path, train_errors[:epoch+1], delimiter=',')  # saves history of training errors on file

@@ -196,4 +196,4 @@ if __name__ == '__main__':
     # todo: collect training history to plot learning curve
     # run_nn_and_tf()
     # run_nn_only_regression()
-    run_nn_only_classification()
+    run_nn_only_regression()
