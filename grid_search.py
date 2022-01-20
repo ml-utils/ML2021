@@ -33,7 +33,7 @@ MONK_CUSTOM_NET_HP_RANGES = {
     HP.UNITS_PER_LAYER: hp.HParam(HP.UNITS_PER_LAYER, hp.Discrete([4, 10])),
     HP.N_HID_LAYERS: hp.HParam(HP.N_HID_LAYERS, hp.Discrete([1])),
     HP.OPTIMIZER: hp.HParam(HP.OPTIMIZER, hp.Discrete(['SGD constant lr'])),
-    HP.LR: hp.HParam(HP.LR, hp.RealInterval(0.001, 0.1)),
+    HP.LR: hp.HParam(HP.LR, hp.RealInterval(0.001, 0.05)),
     HP.MOMENTUM: hp.HParam(HP.MOMENTUM, hp.Discrete([0.01, 0.5])),  # hp.RealInterval(0.5, 0.9)),
     HP.LAMBDA_L2: hp.HParam(HP.LAMBDA_L2, hp.RealInterval(min_value=0.0001, max_value=0.1)),
     HP.MB: hp.HParam(HP.MB, hp.Discrete([1, 20])),
@@ -152,7 +152,7 @@ def do_grid_search(cfg):
         aggregated_results = get_aggregate_results(group_of_trial_repeats, hparams)
         # print(f'aggregated_results: {aggregated_results}')
         append_trial_info_to_report(grid_search_logdir, grid_search_name, cfg[CFG.DATASET_FILENAME], session_name,
-                                    hparams, aggregated_results, file_suffix='-aggregate')
+                                    hparams, aggregated_results, file_suffix='-aggregated')
         session_num += 1
 
     # todo: for each CV fold, do 3-5 trials, then calculate mean and sd of metric (training loss)
@@ -311,8 +311,8 @@ def train_test_custom_nn(hparams, cfg, trial_name='', grid_search_name=''):
     split_id = int(np.round(example_number * train_ratio))
     print(f'doing {split_id} samples for training, and {example_number - split_id} for validation')
 
-    print('dataset head after shuffling: ')
-    print(data[:5])
+    # print('dataset head after shuffling: ')
+    # print(data[:5])
     task = cfg[CFG.TASK_TYPE]
     mini_batch_size = hparams[HP.MB]
     activation = hparams[HP.ACTIV_FUN]  # 'sigmoid' # 'tanh'
@@ -337,7 +337,6 @@ def train_test_custom_nn(hparams, cfg, trial_name='', grid_search_name=''):
 
     cur_time = datetime.now().strftime("%Y%m%d-%H%M%S")
     trial_subdir = cur_time + '-' + trial_name
-    print(f'train_test_custom_nn passing to NeuralNet: grid_search_dir= {grid_search_name}')
     test_net = NeuralNet(activation, net_shape, eta=lr, alpha=alpha_momentum, lamda=lambda_reg, mb=mini_batch_size,
                          task=task, verbose=True, dir=trial_subdir, grid_search_dir=grid_search_name)
 
@@ -356,7 +355,8 @@ def train_test_custom_nn(hparams, cfg, trial_name='', grid_search_name=''):
     try:
         best_tr_error, epochs_done = test_net.batch_training(threshold=stopping_threshold, max_epochs=max_epochs,
                                                          stopping=early_stopping_alg, patience=patience,
-                                                         verbose=False, hyperparams_for_plot=hyperparams_descr)
+                                                         verbose=False, hyperparams_for_plot=hyperparams_descr,
+                                                             trial_name=trial_name)
         crashed = False
     except Exception as e:
         # todo: also fix/handle these cases (not actually Exceptions, just warnings, but the results
@@ -370,14 +370,13 @@ def train_test_custom_nn(hparams, cfg, trial_name='', grid_search_name=''):
     end_time = datetime.now()
     print('training completed at {} ({} elapsed)'.format(end_time, end_time - start_time))
     final_validation_error, accuracy, vl_misc_rate = test_net.validate_net()
-    print(f'final validation_error = {final_validation_error:0.3f}')
-    print(f'final validation accuracy = {accuracy:0.3f}')
+    print(f'final validation_error = {final_validation_error:0.3f}, final validation accuracy = {accuracy:0.3f}')
 
     # todo: plot actual vs predicted (as accuracy and as MSE smoothing function)
     return best_tr_error, epochs_done, final_validation_error, accuracy, crashed
 
 
 if __name__ == '__main__':
-    do_grid_search(MONK3_CUSTOM_NET_CFG)
+    # do_grid_search(MONK1_CUSTOM_NET_CFG)
     do_grid_search(MONK2_CUSTOM_NET_CFG)
-    do_grid_search(MONK1_CUSTOM_NET_CFG)
+    # do_grid_search(MONK3_CUSTOM_NET_CFG)
