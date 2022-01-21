@@ -10,7 +10,7 @@ CUP_CFG = {'shortname': 'MLCUP2021', 'filename': 'ML-CUP21-TR.csv',
                                        'datatypes': MLCUP2021datatypes}
 
 
-def get_cup_dev_set_fold_splits(filepath, cv_num_plits=5, which_fold=1):
+def get_cup_dev_set_fold_splits(filepath, cv_num_plits=3, which_fold=1):
     sep = ','
     dataset = np.loadtxt(filepath, delimiter=sep)  # , converters=converters, fmt=config['datatypes']
     dataset = remove_id_col(dataset, CUP_CFG)

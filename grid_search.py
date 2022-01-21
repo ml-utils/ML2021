@@ -20,17 +20,17 @@ from preprocessing import load_and_preprocess_monk_dataset, get_cup_dev_set_fold
 
 CUP_CUSTOM_NET_HP_RANGES = {
     HP.UNITS_PER_LAYER: hp.HParam(HP.UNITS_PER_LAYER, hp.Discrete([5, 10])),
-    HP.N_HID_LAYERS: hp.HParam(HP.N_HID_LAYERS, hp.Discrete([1])),
+    HP.N_HID_LAYERS: hp.HParam(HP.N_HID_LAYERS, hp.Discrete([1, 2])),
     HP.OPTIMIZER: hp.HParam(HP.OPTIMIZER, hp.Discrete(['SGD constant lr'])),
-    HP.LR: hp.HParam(HP.LR, hp.Discrete([0.01, 0.1])),
-    HP.MOMENTUM: hp.HParam(HP.MOMENTUM, hp.Discrete([0.01, 0.1])),
-    HP.LAMBDA_L2: hp.HParam(HP.LAMBDA_L2, hp.RealInterval(min_value=0.0, max_value=0.0001)),
-    HP.MB: hp.HParam(HP.MB, hp.Discrete([1, 20])),
+    HP.LR: hp.HParam(HP.LR, hp.Discrete([0.001, 0.01])),
+    HP.MOMENTUM: hp.HParam(HP.MOMENTUM, hp.Discrete([0.004, 0.04])),
+    HP.LAMBDA_L2: hp.HParam(HP.LAMBDA_L2, hp.RealInterval(min_value=0.0005, max_value=0.005)),
+    HP.MB: hp.HParam(HP.MB, hp.Discrete([8, 32])),
     HP.ACTIV_FUN: hp.HParam(HP.ACTIV_FUN, hp.Discrete(['tanh', 'sigmoid'])),
-    HP.STOPPING_THRESH: hp.HParam(HP.STOPPING_THRESH, hp.Discrete([0.01])),
-    HP.PATIENCE: hp.HParam(HP.PATIENCE, hp.Discrete([50])),
+    HP.STOPPING_THRESH: hp.HParam(HP.STOPPING_THRESH, hp.Discrete([0.001])),
+    HP.PATIENCE: hp.HParam(HP.PATIENCE, hp.Discrete([150])),
     HP.MAX_EPOCHS: hp.HParam(HP.MAX_EPOCHS, hp.Discrete([2000])),
-    HP.ERROR_FN: hp.HParam(HP.ERROR_FN, hp.Discrete(['MSE'])),  # MEE
+    HP.ERROR_FN: hp.HParam(HP.ERROR_FN, hp.Discrete(['MEE'])),  # MSE
     HP.EARLY_STOP_ALG: hp.HParam(HP.EARLY_STOP_ALG, hp.Discrete(['MSE2_val'])),
     # HP.DROPOUT: hp.HParam('dropout', hp.Discrete([0.1, 0.2])),
 }
@@ -62,7 +62,6 @@ MONK_CUSTOM_NET_HP_RANGES = {
 # 'accuracy'
 
 
-
 CUP_CUSTOM_NET_CFG = {
     CFG.OUT_DIM: 2,
     CFG.INPUT_DIM: 10,
@@ -70,7 +69,7 @@ CUP_CUSTOM_NET_CFG = {
     CFG.MODEL_TYPE: 'CUP_custom_nn',
     CFG.DATASET_FILENAME: 'dev_split.csv',
     CFG.DATASET_DIR: '.\\datasplitting\\assets\\ml-cup21-internal_splits\\',
-    CFG.CV_NUM_SPLITS: 5,
+    CFG.CV_NUM_SPLITS: 3,
     CFG.HP_RANGES: CUP_CUSTOM_NET_HP_RANGES,
 }
 
@@ -430,7 +429,8 @@ def train_test_custom_nn(hparams, cfg, trial_name='', grid_search_name='', cv_nu
 
 
 if __name__ == '__main__':
-    for cv_fold in range(1, 6):
+
+    for cv_fold in range(1, CUP_CUSTOM_NET_CFG[CFG.CV_NUM_SPLITS] + 1):
         do_grid_search(CUP_CUSTOM_NET_CFG, cv_fold=cv_fold)
     # do_grid_search(MONK1_CUSTOM_NET_CFG)
     # do_grid_search(MONK2_CUSTOM_NET_CFG)
