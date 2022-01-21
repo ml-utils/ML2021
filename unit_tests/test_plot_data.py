@@ -138,10 +138,9 @@ class UnitTestsPlotData(unittest.TestCase):
             print(e)
         # then also test resuming
 
-
     def test_generate_plot_from_single_trial_output_file(self):
 
-        plot_data_file_dir = r'C:\mystuff\code\ML2021\20220121-143417-gs-monk_custom_nn\20220121-143418-trial-1.1'
+        plot_data_file_dir = r'..\20220121-143417-gs-monk_custom_nn\20220121-143418-trial-1.1'
         plot_data_filename = r'20220121-143417-gs-monk_custom_nn--plotdata.json'
         plot_data_file_full_path = os.path.join(plot_data_file_dir, plot_data_filename)
         save_to_dir = plot_data_file_dir

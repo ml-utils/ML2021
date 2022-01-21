@@ -1,0 +1,7 @@
+# Data Set (v1): LOC-OSM-TR
+# Nov 2021 - ML-2021 CUP
+# INFO: micheli@di.unipi.it
+# (C) CIML group - Micheli 2021
+# Format:
+# Training set: id inputs target_x target_y (last 2 columns)
+# Blind Test set: id inputs
