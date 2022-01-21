@@ -501,10 +501,11 @@ class NeuralNet:
                 print('epoch train error: ', train_errors[epoch])
             if not epoch % 100 and epoch > 0:  # prints training status on console every 100 epochs
                 self.savestate(epoch)
+                accuracy_info = f', accuracy = {accuracy:.3f}' if accuracy is not None else ''
                 print(f'epoch {epoch} done (tr error = {train_errors[epoch]:.3f}, tr patterns: {example_number} '
                       f'(of which used: {actual_used_tr_patterms}), '
-                      f'val error = {validate_errors[epoch]:.3f}, val patterns: {self.validation_set.shape[0]}, '
-                      f'accuracy = {accuracy:.3f})')
+                      f'val error = {validate_errors[epoch]:.3f}, val patterns: {self.validation_set.shape[0]}'
+                      f'{accuracy_info})')
 
             # check for stopping conditions
             if self.should_stop_training(stopping, threshold, max_epochs, epoch, best_epoch_for_stopping, patience,
