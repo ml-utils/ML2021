@@ -485,7 +485,6 @@ class NeuralNet:
                     # out_u = (part.der of Sum_over_j
                     self.pattern_update(x, y)
 
-                self.update_weights()
                 avg_euclidean_norm_grad_last_layer += self.update_weights()
 
             avg_euclidean_norm_grad_last_layer /= num_of_batches
@@ -518,7 +517,8 @@ class NeuralNet:
 
         summary_path = os.path.join(self.net_dir, 'net_summary.json')
         summary = {'hyperparameters': self.hyperparameters, 'training errors': train_errors[:epoch+1].tolist(),
-                   'validation errors': validate_errors[:epoch+1].tolist()}
+                   'validation errors': validate_errors[:epoch+1].tolist(), 'shift vector': self.shift_vector,
+                   'scale vector': self.scale_vector, 'final MEE': self.validate_net(error_func='MEE')}
 
         if self.task == 'classification':
             summary['misclassification'] = vl_misclassification_rates[:epoch+1].tolist()

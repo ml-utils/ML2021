@@ -4,7 +4,7 @@ from time import sleep
 from datetime import datetime
 import matplotlib.pyplot as plt
 from shutil import rmtree, copytree
-
+import multiprocessing as mp
 # Third party imports
 import numpy as np
 from numpy.random import default_rng
@@ -15,6 +15,9 @@ from lib_models.utils import get_hyperparams_descr
 from nn import NeuralNet
 from preprocessing import load_and_preprocess_monk_dataset, remove_id_col
 
+def train_batch(net, parameters):
+    net.batch_training(parameters)
+    return net.validate_net()
 
 def run_nn_cup():
 
@@ -37,7 +40,7 @@ def run_nn_cup():
     net_shape = [10, 10, out_dim]
 
     task = 'regression'
-    activation = 'tanh'  # 'sigmoid' # 'tanh'
+    activation = 'sigmoid'  # 'sigmoid' # 'tanh'
     mini_batch_size = 1  #20
     lr = 0.1  # 1e-2 # 1e-4
     alpha_momentum = 0.01  # 5e-2
@@ -47,26 +50,35 @@ def run_nn_cup():
     patience = 50
     early_stopping = 'MSE2_val'  # 'EuclNormGrad'  # 'MSE2_val'
 
-    test_net = NeuralNet(activation, net_shape, eta=lr, alpha=alpha_momentum, lamda=lambda_reg, mb=mini_batch_size,
-                         task=task, error=error_fn, verbose=True)
+    net_repetitions = []
 
     split_id = int(np.round(example_number * train_ratio))
     print(f'doing {split_id} samples for training, and {example_number - split_id} for validation')
-    test_net.load_training(dataset[:split_id], out=out_dim)
-    test_net.load_validation(dataset[split_id:], out=out_dim)
+
+    for i in range(5):
+        test_net = NeuralNet(activation, net_shape, eta=lr, alpha=alpha_momentum, lamda=lambda_reg, mb=mini_batch_size,
+                             task=task, error=error_fn, verbose=True)
+        test_net.load_training(dataset[:split_id], out=out_dim)
+        test_net.load_validation(dataset[split_id:], out=out_dim)
+        net_repetitions.append(test_net)
 
     hyperparams_descr = get_hyperparams_descr('CUP_2021dev', str(net_shape), activation, mini_batch_size,
                                               error_fn=error_fn, l2_lambda=lambda_reg, momentum=alpha_momentum,
                                               learning_rate=lr, optimizer=adaptive_lr)
+    pool = mp.Pool(mp.cpu_count())
 
     start_time = datetime.now()
     print('net initialized at {}'.format(start_time))
-    print(f'initial validation_error = {test_net.validate_net()[0]:0.3f}')
-    test_net.batch_training(threshold=stopping_threshold, max_epochs=max_epochs, stopping=early_stopping, patience=patience,
-                            verbose=False, hyperparams_for_plot=hyperparams_descr)
+    pars = dict(threshold=stopping_threshold, max_epochs=max_epochs, stopping=early_stopping,
+                                patience=patience, verbose=False, hyperparams_for_plot=hyperparams_descr)
+
+    results = [pool.apply(train_batch, args=(nets, pars)) for nets in net_repetitions]
+
+
     end_time = datetime.now()
     print('training completed at {} ({} elapsed)'.format(end_time, end_time - start_time))
-    print(f'final validation_error = {test_net.validate_net()[0]:0.3f}')
+    print(results)
+    #print(f'final validation_error = {test_net.validate_net()[0]:0.3f}')
 
 
 def run_nn_only_classification():
