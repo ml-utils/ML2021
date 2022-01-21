@@ -1,0 +1,2 @@
+python plot_data.py "<dir_name>" <filename.json> sessionnum trial num
+(the last 2 are optional)

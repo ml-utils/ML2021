@@ -170,3 +170,26 @@ def plot_learning_curve_to_img_file(validate_errors, train_errors, vl_misclassif
     gc.collect()
     # print(f'Currently there are {plt.get_fignums()} pyplot figures.')
     # print(hpy().heap())
+
+
+if __name__ == '__main__':
+    import sys
+
+    plot_data_file_dir = sys.argv[1]
+    plot_data_filename = sys.argv[2]
+    # optional
+    session_num = sys.argv[3] if sys.argv[3] else 'x'
+    trial_num = sys.argv[4] if sys.argv[4] else 'x'
+
+    plot_data_file_full_path = os.path.join(plot_data_file_dir, plot_data_filename)
+    save_to_dir = plot_data_file_dir
+
+    if not os.path.exists(plot_data_file_dir):
+        print(f'Dir does not exist: {plot_data_file_dir} ')
+        sys.exit()
+
+    if not os.path.exists(plot_data_file_full_path):
+        print(f'File does not exist: {plot_data_file_dir} ')
+        sys.exit()
+
+    generate_plot_from_single_trial_output_file(plot_data_file_full_path, save_to_dir, session_num, trial_num)
