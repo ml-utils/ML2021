@@ -10,41 +10,52 @@ import numpy as np
 from numpy.random import default_rng
 
 # Local application imports
+import preprocessing
 from lib_models.utils import get_hyperparams_descr
 from nn import NeuralNet
-from preprocessing import load_and_preprocess_monk_dataset
+from preprocessing import load_and_preprocess_monk_dataset, remove_id_col
 
 
-def run_nn_only_regression():
-    # trains basic neural network on the airfoil dataset
+def run_nn_cup():
+
+    # trains our custom neural network on the cup dataset
     root_dir = os.getcwd()
-    data_dir = os.path.join(root_dir, '..\\datasplitting\\assets\\airfoil\\airfoil_self_noise.dat.csv')
-    data = np.loadtxt(data_dir)
-    train_ratio = 0.7
+    input_file_path = os.path.join(root_dir, '..\\datasplitting\\assets\\ml-cup21-internal_splits\\dev_split.csv')
+    sep = ','
+    dataset = np.loadtxt(input_file_path, delimiter=sep)  # , converters=converters, fmt=config['datatypes']
+    dataset = remove_id_col(dataset, preprocessing.CUP_CFG)
+    print('data loaded, shape: ', dataset.shape)
+    print(f'dtype: {dataset.dtype}')
+
+    train_ratio = 0.8
     rng = default_rng()
-    rng.shuffle(data)
-    example_number = data.shape[0]
-    activation = 'tanh'
-    mini_batch_size = 1  # 20
-    error_fn = 'MSE'
+    rng.shuffle(dataset)
+    example_number = dataset.shape[0]
+    error_fn = 'MSE'  # MEE
     adaptive_lr = 'SGD constant lr'
-    lr = 1e-4
-    lambda_reg = 5e-7
-    alpha_momentum = 5e-4
+    out_dim = 2
+    net_shape = [10, 10, out_dim]
+
+    task = 'regression'
+    activation = 'tanh'  # 'sigmoid' # 'tanh'
+    mini_batch_size = 1  #20
+    lr = 0.1  # 1e-2 # 1e-4
+    alpha_momentum = 0.01  # 5e-2
+    lambda_reg = 0.00001  # 0.001  # 0.005 # 5e-7
     stopping_threshold = 0.01  #0.00001  # 0.01
     max_epochs = 2000
     patience = 50
     early_stopping = 'MSE2_val'  # 'EuclNormGrad'  # 'MSE2_val'
-    net_shape = [5, 8, 1]
-    split_id = int(np.round(example_number * train_ratio))
 
     test_net = NeuralNet(activation, net_shape, eta=lr, alpha=alpha_momentum, lamda=lambda_reg, mb=mini_batch_size,
-                         task='regression', error=error_fn)
+                         task=task, error=error_fn, verbose=True)
 
-    test_net.load_training(data[:split_id], 1)
-    test_net.load_validation(data[split_id:], 1)
+    split_id = int(np.round(example_number * train_ratio))
+    print(f'doing {split_id} samples for training, and {example_number - split_id} for validation')
+    test_net.load_training(dataset[:split_id], out=out_dim)
+    test_net.load_validation(dataset[split_id:], out=out_dim)
 
-    hyperparams_descr = get_hyperparams_descr(data_dir, str(net_shape), activation, mini_batch_size,
+    hyperparams_descr = get_hyperparams_descr('CUP_2021dev', str(net_shape), activation, mini_batch_size,
                                               error_fn=error_fn, l2_lambda=lambda_reg, momentum=alpha_momentum,
                                               learning_rate=lr, optimizer=adaptive_lr)
 
@@ -60,7 +71,7 @@ def run_nn_only_regression():
 
 def run_nn_only_classification():
     root_dir = os.getcwd()
-    filename = 'monks-3.train'
+    filename = 'monks-1.train'
     file_path = os.path.join(root_dir, '..\\datasplitting\\assets\\monk\\', filename)
 
     data = load_and_preprocess_monk_dataset(file_path)
@@ -84,7 +95,7 @@ def run_nn_only_classification():
     mini_batch_size = 1
     lr = 0.1  # 1e-2
     alpha_momentum = 0.01  # 5e-2
-    lambda_reg = 0  # 0.001  # 0.005
+    lambda_reg = 0.00001  # 0.001  # 0.005
     stopping_threshold = 0.01  #0.00001  # 0.01
     max_epochs = 2000
     patience = 50
@@ -202,4 +213,5 @@ if __name__ == '__main__':
     # todo: collect training history to plot learning curve
     # run_nn_and_tf()
     # run_nn_only_regression()
-    run_nn_only_classification()
+    # run_nn_only_classification()
+    run_nn_cup()

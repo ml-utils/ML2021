@@ -1,4 +1,13 @@
+import os
+
 import numpy as np
+import pandas as pd
+
+MLCUP2021datatypes = ['%i'] + (['%f'] * 12)  # first col is integer, the others are floats
+CUP_CFG = {'shortname': 'MLCUP2021', 'filename': 'ML-CUP21-TR.csv',
+                                       'input_dim': 10, 'x_begin_col_idx': 1, 'x_end_col_idx': 10,
+                                       'output_dim': 2, 'y_begin_col_idx': 11, 'y_end_col_idx': 12,
+                                       'datatypes': MLCUP2021datatypes}
 
 
 def load_and_preprocess_monk_dataset(filepath):
@@ -51,3 +60,73 @@ def one_hot_encode_multiple_cols(arr, col_indexes_to_encode=None, cols_to_not_ch
 
     return encoded_ds
 
+
+def split_cup_dataset():
+
+    root_dir = os.getcwd()
+    workdir = '.\\datasplitting\\assets\\ml-cup21-internal_splits\\'
+    workdir_path = os.path.join(root_dir, workdir)
+    input_file_name = 'ML-CUP21-TR.csv'
+    input_file_path = os.path.join(workdir_path, input_file_name)
+    # print(f'workdir_path dir: {workdir_path}, input_file_path: {input_file_path}')
+    sep = ','
+
+    config = CUP_CFG
+
+    '''converters = {0: lambda s: int(s),
+                  1: lambda s: float(s),
+                  2: lambda s: float(s),
+                  3: lambda s: float(s),
+                  4: lambda s: float(s),
+                  5: lambda s: float(s),
+                  6: lambda s: float(s),
+                  7: lambda s: float(s),
+                  8: lambda s: float(s),
+                  9: lambda s: float(s),
+                  10: lambda s: float(s),
+                  11: lambda s: float(s),
+                  12: lambda s: float(s),
+                  }  # {0: datestr2num}'''
+
+    # pd.read_csv(filepath, sep=sep)
+    dataset = np.loadtxt(input_file_path, delimiter=sep)  # , converters=converters, fmt=config['datatypes']
+    print('data loaded, shape: ', dataset.shape)
+    print(f'dtype: {dataset.dtype}')
+
+    # check num columns, num patterns
+
+    print('dataset head before shuffling: ')
+    print(dataset[:2])
+    # shuffle
+    np.random.shuffle(dataset)
+    print('dataset head after shuffling: ')
+    print(dataset[:2])
+    print('data loaded, shape: ', dataset.shape)
+
+    # test_set_ratio = 0.2
+    # nb per il training set cercare num pattern che sia multiplo .. di minibatch tipici
+    # 1477 totali
+    # 1200 dev (0.8125) 277 ts (0.1875 perc)
+    # cv folds: 240 vl, 960 tr (0.20 perc folds)
+    dev_split_idx = 1200
+
+    dev_split_filename = 'dev_split.csv'
+    dev_split_file_path = os.path.join(workdir_path, dev_split_filename)
+    print(f'saving dataset to {dev_split_file_path}')
+    np.savetxt(dev_split_file_path, dataset[:dev_split_idx], fmt=config['datatypes'], delimiter=sep)
+
+    test_split_filename = 'test_split.csv'
+    test_split_file_path = os.path.join(workdir_path, test_split_filename)
+    print(f'saving dataset to {test_split_file_path}')
+    np.savetxt(test_split_file_path, dataset[dev_split_idx:], fmt=config['datatypes'], delimiter=sep)
+
+
+def remove_id_col(dataset, config):
+    if config['shortname'] == 'MLCUP2021':
+        ids = dataset[:, 0]
+        no_ids = dataset[:, config['x_begin_col_idx']:(config['y_end_col_idx'] + 1)]
+    return no_ids
+
+
+if __name__ == '__main__':
+    split_cup_dataset()

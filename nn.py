@@ -280,7 +280,8 @@ class NeuralNet:
         print(f'Loading {train_examples} train examples..')
         inp = training_set.shape[1] - out
         if inp != self.fan_in:
-            raise ValueError('Number of input variables in training set doesn\'t match input units!')
+            print(f'out: {out}, training_set.shape[1]: {training_set.shape[1]}')
+            raise ValueError(f'Number of input variables in training set ({inp}) doesn\'t match input units ({self.fan_in})!')
 
         if out != self.fan_out:
             raise ValueError('Number of output variables in training set doesn\'t match output units!')
@@ -594,7 +595,7 @@ class NeuralNet:
         correct = 0
         accu = None
 
-        validation_predicted_outs = []
+        # validation_predicted_outs = []
         for example in self.validation_set:
             x = example[:self.fan_in]
             y = example[-self.fan_out:]
@@ -604,7 +605,9 @@ class NeuralNet:
             if self.task == 'classification':
                 discretized_predicted_y = np.around(predicted_y)
             # print(f'predicted y:  {predicted_y}, thresholded_predicted_y: {thresholded_predicted_y}, actual y: {y}')
-            validation_predicted_outs.append(np.asscalar(predicted_y))
+
+            # todo: adapt this for outdim > 2, useful to later plot actual vs predicted graph
+            # validation_predicted_outs.append(np.asscalar(predicted_y))
             if type(y) is np.ndarray:
                 # todo pass error fn (MSE, MAE, ..) as parameter like for activation functions
                 current_error = ((y - predicted_y)**2).sum()
