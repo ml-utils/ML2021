@@ -25,12 +25,16 @@ def run_nn_only_regression():
     rng.shuffle(data)
     example_number = data.shape[0]
     activation = 'tanh'
-    mini_batch_size = 20
+    mini_batch_size = 1  # 20
     error_fn = 'MSE'
     adaptive_lr = 'SGD constant lr'
     lr = 1e-4
     lambda_reg = 5e-7
     alpha_momentum = 5e-4
+    stopping_threshold = 0.01  #0.00001  # 0.01
+    max_epochs = 2000
+    patience = 50
+    early_stopping = 'MSE2_val'  # 'EuclNormGrad'  # 'MSE2_val'
     net_shape = [5, 8, 1]
     split_id = int(np.round(example_number * train_ratio))
 
@@ -47,7 +51,8 @@ def run_nn_only_regression():
     start_time = datetime.now()
     print('net initialized at {}'.format(start_time))
     print(f'initial validation_error = {test_net.validate_net()[0]:0.3f}')
-    test_net.batch_training(hyperparams_for_plot=hyperparams_descr)
+    test_net.batch_training(threshold=stopping_threshold, max_epochs=max_epochs, stopping=early_stopping, patience=patience,
+                            verbose=False, hyperparams_for_plot=hyperparams_descr)
     end_time = datetime.now()
     print('training completed at {} ({} elapsed)'.format(end_time, end_time - start_time))
     print(f'final validation_error = {test_net.validate_net()[0]:0.3f}')
@@ -55,7 +60,7 @@ def run_nn_only_regression():
 
 def run_nn_only_classification():
     root_dir = os.getcwd()
-    filename = 'monks-2.train'
+    filename = 'monks-3.train'
     file_path = os.path.join(root_dir, '..\\datasplitting\\assets\\monk\\', filename)
 
     data = load_and_preprocess_monk_dataset(file_path)
@@ -70,19 +75,20 @@ def run_nn_only_classification():
     train_ratio = 0.813
     split_id = int(np.round(example_number * train_ratio))
     print(f'doing {split_id} samples for training, and {example_number - split_id} for validation')
-    mini_batch_size = 4
 
     print('dataset head after shuffling: ')
     print(data[:5])
     task = 'classification'
     activation = 'tanh'  # 'sigmoid' # 'tanh'
     net_shape = [17, 5, 1]
-    lr = 1e-2
-    alpha_momentum = 5e-2
+    mini_batch_size = 1
+    lr = 0.1  # 1e-2
+    alpha_momentum = 0.01  # 5e-2
     lambda_reg = 0  # 0.001  # 0.005
-    stopping_threshold = 0.00005
-    max_epochs = 1500
+    stopping_threshold = 0.01  #0.00001  # 0.01
+    max_epochs = 2000
     patience = 50
+    early_stopping = 'MSE2_val'  # 'EuclNormGrad'  # 'MSE2_val'
 
     test_net = NeuralNet(activation, net_shape, eta=lr, alpha=alpha_momentum, lamda=lambda_reg, mb=mini_batch_size,
                          task=task, verbose=True)
@@ -98,7 +104,7 @@ def run_nn_only_classification():
     print('net initialized at {}'.format(start_time))
     print(f'initial validation_error = {test_net.validate_net()[0]:0.3f}')
 
-    test_net.batch_training(threshold=stopping_threshold, max_epochs=max_epochs, stopping='MSE2_val', patience=patience,
+    test_net.batch_training(threshold=stopping_threshold, max_epochs=max_epochs, stopping=early_stopping, patience=patience,
                             verbose=False, hyperparams_for_plot=hyperparams_descr)
     end_time = datetime.now()
     print('training completed at {} ({} elapsed)'.format(end_time, end_time - start_time))
@@ -147,7 +153,7 @@ def run_nn_and_tf():
     tf_error_fn = tf.keras.losses.MeanSquaredError()
 
     test_net = NeuralNet(activation_fun, custom_nn_shape, eta=lr_eta, alpha=alpha_momentum, lamda=lambda_regularization,
-                            task=task_type, mb=mini_batch_size, max_epochs=max_epochs, threshold=max_epochs)
+                         task=task_type, mb=mini_batch_size, max_epochs=max_epochs, threshold=early_stopping_threshold)
 
     test_net.load_training(training_data, out_cols_count)
     test_net.load_validation(validation_data, out_cols_count)

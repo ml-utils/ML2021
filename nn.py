@@ -1,3 +1,4 @@
+import math
 from time import sleep
 from json import dump
 from datetime import datetime
@@ -18,8 +19,10 @@ import numpy as np
 def linear(x):
     return x
 
+
 def linearprime(y):
     return 1
+
 
 def sigmoid(x):
     return 1/(1 + np.exp(-x))
@@ -35,6 +38,7 @@ def tanh(a, b):
 
 def tanhprime(a, b):
     return lambda y: a*b - b/a*y**2
+
 
 # "layer" class:
 # implements a single layer of an MLP
@@ -143,10 +147,12 @@ class Layer:
 
         # if role == hidden unit k:
         # error_signal = sum_(j=1)^fan_out w_lj^(k+1)*delta_l
+        # error_signal or delta_t ∀ unit t
         error_signal = dEp_dOt*self.derivative(self.latest_out)
         # nb: we use latest_out instead of latest_net
         # because, for convenience, the derivative functions here are expressed in terms of the out, not of the net
 
+        # error_signal delta_t * output of previous layer
         delta_weights_for_current_pattern = -1 * np.outer(error_signal, self.latest_in)  # this is delta_p_w_tu (∀ tu)
         self.delta_weights += delta_weights_for_current_pattern
 
@@ -167,7 +173,6 @@ class Layer:
 
         # nb: lamda*self.weights, regularization component, is a L.. regularization
         # regularization formula (already derivative): -2*lambda*w (from slide 69 of lecture 03 linear knn)
-        # so just lamda*self.weights seems to be missing a 2*
         self.weights += self.delta_weights_old - lamda*self.weights
         self.delta_weights = np.zeros(self.delta_weights.shape)
 
@@ -213,7 +218,7 @@ class NeuralNet:
         self.eta = eta  # learning rate
         self.alpha = alpha  # momentum parameter
         self.lamda = lamda  # regularization parameter
-        self.mb = mb # number of patterns in each mini-batch
+        self.mb = mb  # number of patterns in each mini-batch
         self.batch_SE = 0 # squared error on latest mini-batch
         self.epoch_SE = 0 # squared error on latest epoch
 
@@ -404,6 +409,10 @@ class NeuralNet:
 
         for layer in self.layers:
             layer.update_weights(self.eta/self.mb, self.alpha/self.mb, self.lamda/self.mb)
+        squared_gradient_last_layer = np.square(self.layers[-1].delta_weights_old)
+        euclidean_norm_grad_last_layer = math.sqrt(np.sum(squared_gradient_last_layer))
+        return euclidean_norm_grad_last_layer
+
 
     # splits training data into batches; returns an iterable
     # NOTE: if self.mb isn't a multiple of the number of training examples the last few will be left out of training
@@ -450,6 +459,7 @@ class NeuralNet:
 
         # number of examples used in each epoch (lower than total number of TRAIN examples, see batch_split()
         example_number = self.training_set.shape[0] - self.training_set.shape[0] % self.mb
+        num_of_batches = example_number / self.mb
         best_epoch_for_stopping = 0
         for epoch in range(max_epochs):
             self.epoch_SE = 0
@@ -461,6 +471,7 @@ class NeuralNet:
             # for a particular w_tu, and pattern p: delta_p_wtu = - part.der of E(p) over w_tu =
 
             actual_used_tr_patterms = 0
+            avg_euclidean_norm_grad_last_layer = 0
             for batch in self.batch_split():
 
                 for example in batch:
@@ -475,10 +486,10 @@ class NeuralNet:
                     self.pattern_update(x, y)
 
                 self.update_weights()
+                avg_euclidean_norm_grad_last_layer += self.update_weights()
 
+            avg_euclidean_norm_grad_last_layer /= num_of_batches
             train_errors[epoch] = self.epoch_SE/example_number
-            # todo: salve also history of accuracy per epoch
-
             validate_errors[epoch], accuracy, vl_misclassification_rates[epoch] = self.validate_net(epoch, error_func)
 
             # todo: if no validation set has been explicitly loaded, automatically split a portion of the training set
@@ -488,7 +499,7 @@ class NeuralNet:
 
             if verbose:
                 print('epoch train error: ', train_errors[epoch])
-            if not epoch % 100: # prints training status on console every 100 epochs
+            if not epoch % 100 and epoch > 0:  # prints training status on console every 100 epochs
                 self.savestate(epoch)
                 print(f'epoch {epoch} done (tr error = {train_errors[epoch]:.3f}, tr patterns: {example_number} '
                       f'(of which used: {actual_used_tr_patterms}), '
@@ -497,9 +508,10 @@ class NeuralNet:
 
             # check for stopping conditions
             if self.should_stop_training(stopping, threshold, max_epochs, epoch, best_epoch_for_stopping, patience,
-                                         validate_errors, train_errors):
+                                         validate_errors, train_errors, avg_euclidean_norm_grad_last_layer):
                 break
 
+        print(f'done {epoch+1} epochs')
         best_tr_error = train_errors[best_epoch_for_stopping]
         epochs_done = best_epoch_for_stopping
 
@@ -525,9 +537,16 @@ class NeuralNet:
         return best_tr_error, epochs_done
 
     def should_stop_training(self, stopping, threshold, max_epochs, epoch, best_epoch_for_stopping, patience,
-                             validate_errors, train_errors):
+                             validate_errors, train_errors, euclidean_norm_grad_last_layer):
         if stopping == 'epochs':
             if epoch == max_epochs:
+                return True
+        elif stopping == 'EuclNormGrad':
+            print(f'Epoch {epoch}, euclidean_norm_grad_last_layer : {euclidean_norm_grad_last_layer}')
+            if epoch - best_epoch_for_stopping > patience and \
+                    euclidean_norm_grad_last_layer < threshold:
+                print(f'Stopping: at epoch {epoch}, '
+                      f' because euclidean_norm_grad_last_layer < {threshold}')
                 return True
         elif stopping == 'MSE2_val':
             if epoch - best_epoch_for_stopping > patience:
@@ -544,6 +563,7 @@ class NeuralNet:
                         mean_relative_change += abs(validate_errors[epoch_idx] - validate_errors[epoch_idx - 1]) \
                                                 / validate_errors[epoch_idx - 1]
                     mean_relative_change /= past_epochs_to_count
+                    # print(f'mean_relative_change: {mean_relative_change}, threshold: {threshold}')
                     if mean_relative_change < threshold:
                         self.restore_layers_weights_best_epoch()
                         print(f'Stopping: at epoch {epoch}, '
