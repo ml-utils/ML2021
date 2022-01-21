@@ -4,13 +4,11 @@ from json import dump
 from datetime import datetime
 from shutil import rmtree, copytree
 import os
-import gc
 
-from guppy import hpy
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 from numpy.random import default_rng
 import numpy as np
+
+from plot_data import *
 
 
 # Activation functions, each followed by their respective derivatives;
@@ -433,7 +431,8 @@ class NeuralNet:
 
     # trains neural net for fixed number of epochs using mini-batch method; also saves MSE for each epoch on file
     def batch_training(self, stopping='epochs', patience=50, threshold=0.01, max_epochs=500, error_func=None,
-                       verbose=False, hyperparams_for_plot='', trial_name=''):  # TODO: implement actual stopping conditions
+                       verbose=False, hyperparams_for_plot='', trial_name='', save_plot_to_file=True,
+                       grid_search_dir_for_plots='', gridsearch_descr=''):
 
         if error_func is None:
             error_func = self.error_func
@@ -532,8 +531,15 @@ class NeuralNet:
         vl_misclassification_rates_path = os.path.join(self.net_dir, 'vl_misclassification_rates.csv')
         np.savetxt(vl_misclassification_rates_path, vl_misclassification_rates[:epoch+1], delimiter=';')
 
-        NeuralNet.plot_learning_curve_to_img_file(validate_errors, train_errors, vl_misclassification_rates, epoch,
-                                             hyperparams_for_plot, self.task, self.error_func, self.net_dir, trial_name)
+        if save_plot_to_file:
+            plot_learning_curve_to_img_file(validate_errors, train_errors, vl_misclassification_rates, epoch,
+                                                      hyperparams_for_plot, self.task, self.error_func, self.net_dir,
+                                                      trial_name)
+        else:
+            append_learning_curve_plot_data_to_file(validate_errors, train_errors, vl_misclassification_rates,
+                                                    epoch, hyperparams_for_plot, self.task, self.error_func,
+                                                    self.net_dir, trial_name='',
+                                                    gridsearch_descr=gridsearch_descr)
         return best_tr_error, epochs_done
 
     def should_stop_training(self, stopping, threshold, max_epochs, epoch, best_epoch_for_stopping, patience,
@@ -626,46 +632,6 @@ class NeuralNet:
                 # print(f'val predicted: {validation_predicted_outs}')
         error_smooth /= self.validation_set.shape[0]
         return error_smooth, accu, misclassification_rate
-
-
-    @staticmethod
-    def plot_learning_curve_to_img_file(validate_errors, train_errors, vl_misclassification_rates, epoch,
-                                        hyperparams_for_plot, learning_task, error_func, net_dir, trial_name=''):
-        # todo: run this in a separathe thread/process to try fix the crash after 350 plots
-
-        try:
-            fig, ax = plt.subplots(1)
-            # todo: explain: why specify [:epoch+1]
-            ax.plot(validate_errors[:epoch+1], label='validation errors')
-            ax.plot(train_errors[:epoch+1], label='training errors')
-            ax.plot(vl_misclassification_rates[:epoch + 1], label='vl misclassification rates')
-            plt.xlabel('epoch')
-
-            y_axis_label = 'MSE / miscl rate' if learning_task == 'classification' else error_func
-            plt.ylabel(y_axis_label)
-
-            handles, labels = ax.get_legend_handles_labels()
-            handles.append(mpatches.Patch(color='none', label=hyperparams_for_plot))
-            ax.legend(handles=handles)
-        except Exception as e:
-            print(f'Unable to create a new plot {e}')
-        except SystemExit as e:
-            print(f'Unable to create a new plot, SystemExit: {e}')
-        except BaseException as e:
-            print(f'Unable to create a new plot, BaseException: {e}')
-
-        # todo: plot of accuracy metric (misclassification rate)
-        # todo: evaluate on monk test set files
-
-        filename = 'errors-' + trial_name + '.png'
-        error_graph_path = os.path.join(net_dir, filename)
-
-        plt.savefig(error_graph_path)
-        fig.clear()
-        plt.close(fig) # plt.close('all')
-        gc.collect()
-        # print(f'Currently there are {plt.get_fignums()} pyplot figures.')
-        # print(hpy().heap())
 
 
 if __name__ == '__main__':

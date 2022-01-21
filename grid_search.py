@@ -30,17 +30,17 @@ AIRF_TF_HP_RANGES = {
 }
 
 MONK_CUSTOM_NET_HP_RANGES = {
-    HP.UNITS_PER_LAYER: hp.HParam(HP.UNITS_PER_LAYER, hp.Discrete([4, 10])),
+    HP.UNITS_PER_LAYER: hp.HParam(HP.UNITS_PER_LAYER, hp.Discrete([5, 10])),
     HP.N_HID_LAYERS: hp.HParam(HP.N_HID_LAYERS, hp.Discrete([1])),
     HP.OPTIMIZER: hp.HParam(HP.OPTIMIZER, hp.Discrete(['SGD constant lr'])),
-    HP.LR: hp.HParam(HP.LR, hp.RealInterval(0.001, 0.05)),
+    HP.LR: hp.HParam(HP.LR, hp.RealInterval(0.001, 0.5)),
     HP.MOMENTUM: hp.HParam(HP.MOMENTUM, hp.Discrete([0.01, 0.5])),  # hp.RealInterval(0.5, 0.9)),
     HP.LAMBDA_L2: hp.HParam(HP.LAMBDA_L2, hp.RealInterval(min_value=0.0001, max_value=0.1)),
     HP.MB: hp.HParam(HP.MB, hp.Discrete([1, 20])),
     HP.ACTIV_FUN: hp.HParam(HP.ACTIV_FUN, hp.Discrete(['tanh', 'sigmoid'])),
-    HP.STOPPING_THRESH: hp.HParam(HP.STOPPING_THRESH, hp.Discrete([0.00005])),
+    HP.STOPPING_THRESH: hp.HParam(HP.STOPPING_THRESH, hp.Discrete([0.005])),
     HP.PATIENCE: hp.HParam(HP.PATIENCE, hp.Discrete([50])),
-    HP.MAX_EPOCHS: hp.HParam(HP.MAX_EPOCHS, hp.Discrete([1500])),
+    HP.MAX_EPOCHS: hp.HParam(HP.MAX_EPOCHS, hp.Discrete([2500])),
     HP.ERROR_FN: hp.HParam(HP.ERROR_FN, hp.Discrete(['MSE'])),  # MEE
     HP.EARLY_STOP_ALG: hp.HParam(HP.EARLY_STOP_ALG, hp.Discrete(['MSE2_val'])),
     # HP.DROPOUT: hp.HParam('dropout', hp.RealInterval(0.1, 0.2)),
@@ -94,7 +94,7 @@ MONK3_CUSTOM_NET_CFG = {
 
 def do_grid_search(cfg):
     model_type = cfg[CFG.MODEL_TYPE]
-    grid_search_name = datetime.now().strftime("%Y%m%d-%H%M%S") + '-' + model_type
+    grid_search_name = datetime.now().strftime("%Y%m%d-%H%M%S") + '-gs-' + model_type
     session_num = 0
     repeats_per_trial = 5
     iters = [
@@ -352,11 +352,14 @@ def train_test_custom_nn(hparams, cfg, trial_name='', grid_search_name=''):
     print('net initialized at {}'.format(start_time))
     print(f'initial validation_error = {test_net.validate_net()[0]:0.3f}')
 
+    grid_search_dir = os.path.join(os.getcwd(), grid_search_name)
     try:
         best_tr_error, epochs_done = test_net.batch_training(threshold=stopping_threshold, max_epochs=max_epochs,
                                                          stopping=early_stopping_alg, patience=patience,
                                                          verbose=False, hyperparams_for_plot=hyperparams_descr,
-                                                             trial_name=trial_name)
+                                                             trial_name=trial_name, save_plot_to_file=False,
+                                                             grid_search_dir_for_plots=grid_search_dir,
+                                                             gridsearch_descr=grid_search_name)
         crashed = False
     except Exception as e:
         # todo: also fix/handle these cases (not actually Exceptions, just warnings, but the results
@@ -377,6 +380,6 @@ def train_test_custom_nn(hparams, cfg, trial_name='', grid_search_name=''):
 
 
 if __name__ == '__main__':
-    # do_grid_search(MONK1_CUSTOM_NET_CFG)
-    do_grid_search(MONK2_CUSTOM_NET_CFG)
+    do_grid_search(MONK1_CUSTOM_NET_CFG)
+    # do_grid_search(MONK2_CUSTOM_NET_CFG)
     # do_grid_search(MONK3_CUSTOM_NET_CFG)
