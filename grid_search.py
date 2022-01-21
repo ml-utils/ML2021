@@ -15,35 +15,41 @@ import tensorflow as tf
 from hp_names import HP, CFG, RES
 from lib_models.grid_search_tf import train_test_model_tf
 from nn import NeuralNet
-from preprocessing import load_and_preprocess_monk_dataset
+from preprocessing import load_and_preprocess_monk_dataset, get_cup_dev_set_fold_splits
 
 
-AIRF_TF_HP_RANGES = {
-    HP.UNITS_PER_LAYER: hp.HParam(HP.UNITS_PER_LAYER, hp.Discrete([32, 128])),
-    HP.OPTIMIZER: hp.HParam(HP.OPTIMIZER, hp.Discrete(['adam', 'rmsprop'])),  # , 'sgd', 'adagrad'
-    HP.LR: hp.HParam(HP.LR, hp.RealInterval(0.001, 0.01)),
-    HP.MOMENTUM: hp.HParam(HP.MOMENTUM, hp.Discrete([0.5])),  # hp.RealInterval(0.5, 0.9)),
-    HP.LAMBDA_L2: hp.HParam(HP.LAMBDA_L2, hp.RealInterval(min_value=0.001, max_value=0.1)),
-    # HP.DROPOUT: hp.HParam('dropout', hp.RealInterval(0.1, 0.2)),
+CUP_CUSTOM_NET_HP_RANGES = {
+    HP.UNITS_PER_LAYER: hp.HParam(HP.UNITS_PER_LAYER, hp.Discrete([5, 10])),
+    HP.N_HID_LAYERS: hp.HParam(HP.N_HID_LAYERS, hp.Discrete([1])),
+    HP.OPTIMIZER: hp.HParam(HP.OPTIMIZER, hp.Discrete(['SGD constant lr'])),
+    HP.LR: hp.HParam(HP.LR, hp.Discrete([0.01, 0.1])),
+    HP.MOMENTUM: hp.HParam(HP.MOMENTUM, hp.Discrete([0.01, 0.1])),
+    HP.LAMBDA_L2: hp.HParam(HP.LAMBDA_L2, hp.RealInterval(min_value=0.0, max_value=0.0001)),
     HP.MB: hp.HParam(HP.MB, hp.Discrete([1, 20])),
-    HP.ACTIV_FUN: hp.HParam(HP.ACTIV_FUN, hp.Discrete(['relu']))  # activation=activation_fun
+    HP.ACTIV_FUN: hp.HParam(HP.ACTIV_FUN, hp.Discrete(['tanh', 'sigmoid'])),
+    HP.STOPPING_THRESH: hp.HParam(HP.STOPPING_THRESH, hp.Discrete([0.01])),
+    HP.PATIENCE: hp.HParam(HP.PATIENCE, hp.Discrete([50])),
+    HP.MAX_EPOCHS: hp.HParam(HP.MAX_EPOCHS, hp.Discrete([2000])),
+    HP.ERROR_FN: hp.HParam(HP.ERROR_FN, hp.Discrete(['MSE'])),  # MEE
+    HP.EARLY_STOP_ALG: hp.HParam(HP.EARLY_STOP_ALG, hp.Discrete(['MSE2_val'])),
+    # HP.DROPOUT: hp.HParam('dropout', hp.Discrete([0.1, 0.2])),
 }
 
 MONK_CUSTOM_NET_HP_RANGES = {
     HP.UNITS_PER_LAYER: hp.HParam(HP.UNITS_PER_LAYER, hp.Discrete([5, 10])),
     HP.N_HID_LAYERS: hp.HParam(HP.N_HID_LAYERS, hp.Discrete([1])),
     HP.OPTIMIZER: hp.HParam(HP.OPTIMIZER, hp.Discrete(['SGD constant lr'])),
-    HP.LR: hp.HParam(HP.LR, hp.RealInterval(0.001, 0.5)),
-    HP.MOMENTUM: hp.HParam(HP.MOMENTUM, hp.Discrete([0.01, 0.5])),  # hp.RealInterval(0.5, 0.9)),
-    HP.LAMBDA_L2: hp.HParam(HP.LAMBDA_L2, hp.RealInterval(min_value=0.0001, max_value=0.1)),
+    HP.LR: hp.HParam(HP.LR, hp.Discrete([0.01, 0.1])),
+    HP.MOMENTUM: hp.HParam(HP.MOMENTUM, hp.Discrete([0.01, 0.1])),
+    HP.LAMBDA_L2: hp.HParam(HP.LAMBDA_L2, hp.RealInterval(min_value=0.0, max_value=0.0001)),
     HP.MB: hp.HParam(HP.MB, hp.Discrete([1, 20])),
     HP.ACTIV_FUN: hp.HParam(HP.ACTIV_FUN, hp.Discrete(['tanh', 'sigmoid'])),
-    HP.STOPPING_THRESH: hp.HParam(HP.STOPPING_THRESH, hp.Discrete([0.005])),
+    HP.STOPPING_THRESH: hp.HParam(HP.STOPPING_THRESH, hp.Discrete([0.01])),
     HP.PATIENCE: hp.HParam(HP.PATIENCE, hp.Discrete([50])),
-    HP.MAX_EPOCHS: hp.HParam(HP.MAX_EPOCHS, hp.Discrete([2500])),
+    HP.MAX_EPOCHS: hp.HParam(HP.MAX_EPOCHS, hp.Discrete([2000])),
     HP.ERROR_FN: hp.HParam(HP.ERROR_FN, hp.Discrete(['MSE'])),  # MEE
     HP.EARLY_STOP_ALG: hp.HParam(HP.EARLY_STOP_ALG, hp.Discrete(['MSE2_val'])),
-    # HP.DROPOUT: hp.HParam('dropout', hp.RealInterval(0.1, 0.2)),
+    # HP.DROPOUT: hp.HParam('dropout', hp.Discrete([0.1, 0.2])),
 }
 # remove from hyperparams:
 # ERROR_FN = tf.keras.losses.MeanSquaredError()
@@ -55,7 +61,18 @@ MONK_CUSTOM_NET_HP_RANGES = {
 # HIST_VAL_MSE = 'val_mse'
 # 'accuracy'
 
-HP_RANGES = MONK_CUSTOM_NET_HP_RANGES
+
+
+CUP_CUSTOM_NET_CFG = {
+    CFG.OUT_DIM: 2,
+    CFG.INPUT_DIM: 10,
+    CFG.TASK_TYPE: 'regression',
+    CFG.MODEL_TYPE: 'CUP_custom_nn',
+    CFG.DATASET_FILENAME: 'dev_split.csv',
+    CFG.DATASET_DIR: '.\\datasplitting\\assets\\ml-cup21-internal_splits\\',
+    CFG.CV_NUM_SPLITS: 5,
+    CFG.HP_RANGES: CUP_CUSTOM_NET_HP_RANGES,
+}
 
 MONK1_CUSTOM_NET_CFG = {
     CFG.OUT_DIM: 1,
@@ -64,6 +81,7 @@ MONK1_CUSTOM_NET_CFG = {
     CFG.MODEL_TYPE: 'monk_custom_nn',
     CFG.DATASET_FILENAME: 'monks-1.train',
     CFG.DATASET_DIR: '.\\datasplitting\\assets\\monk\\',
+    CFG.HP_RANGES: MONK_CUSTOM_NET_HP_RANGES,
 }
 
 MONK2_CUSTOM_NET_CFG = {
@@ -73,6 +91,7 @@ MONK2_CUSTOM_NET_CFG = {
     CFG.MODEL_TYPE: 'monk_custom_nn',
     CFG.DATASET_FILENAME: 'monks-2.train',
     CFG.DATASET_DIR: '.\\datasplitting\\assets\\monk\\',
+    CFG.HP_RANGES: MONK_CUSTOM_NET_HP_RANGES,
 }
 
 MONK3_CUSTOM_NET_CFG = {
@@ -82,6 +101,7 @@ MONK3_CUSTOM_NET_CFG = {
     CFG.MODEL_TYPE: 'monk_custom_nn',
     CFG.DATASET_FILENAME: 'monks-3.train',
     CFG.DATASET_DIR: '.\\datasplitting\\assets\\monk\\',
+    CFG.HP_RANGES: MONK_CUSTOM_NET_HP_RANGES,
 }
 
 # todo: pass dataset filename and trial name in the grid search to the batchtraining method to save
@@ -92,15 +112,24 @@ MONK3_CUSTOM_NET_CFG = {
 # todo: optimize: load and preprocess the dataset once, then pass it to the gridsearch as a param
 
 
-def do_grid_search(cfg):
+def do_grid_search(cfg, cv_fold=None):
+    # todo: add cross validation option
+    # with number of folds
+    # dataset is split .. and passed accordingly to the load_training and load_validation methods
+
     model_type = cfg[CFG.MODEL_TYPE]
-    grid_search_name = datetime.now().strftime("%Y%m%d-%H%M%S") + '-gs-' + model_type
+    if cv_fold is not None:
+        fold_affix = '-fold-' + str(cv_fold)
+    else:
+        fold_affix = ''
+    grid_search_name = datetime.now().strftime("%Y%m%d-%H%M%S") + '-gs' + fold_affix + '-' + model_type
     session_num = 0
     repeats_per_trial = 5
+    HP_RANGES = cfg[CFG.HP_RANGES]
     iters = [
         HP_RANGES[HP.UNITS_PER_LAYER].domain.values,
         HP_RANGES[HP.N_HID_LAYERS].domain.values,
-        (HP_RANGES[HP.LR].domain.min_value, HP_RANGES[HP.LR].domain.max_value),
+        HP_RANGES[HP.LR].domain.values,
         HP_RANGES[HP.MOMENTUM].domain.values,
         (HP_RANGES[HP.LAMBDA_L2].domain.min_value, HP_RANGES[HP.LAMBDA_L2].domain.max_value),
         HP_RANGES[HP.OPTIMIZER].domain.values,
@@ -113,11 +142,6 @@ def do_grid_search(cfg):
         HP_RANGES[HP.EARLY_STOP_ALG].domain.values,
     ]
     total_sessions = len(list(product(*iters)))
-    '''len(HP_RANGES[HP.NUM_UNITS_PER_HID_LAYER].domain.values) \
-                 * len((HP_RANGES[HP.LEARNING_RATE].domain.min_value, HP_RANGES[HP.LEARNING_RATE].domain.max_value)) \
-                 * len(HP_RANGES[HP.MOMENTUM].domain.values) \
-                 * len((HP_RANGES[HP.LAMBDA_L2].domain.min_value, HP_RANGES[HP.LAMBDA_L2].domain.max_value)) \
-                 * len(HP_RANGES[HP.OPTIMIZER].domain.values='''
 
     for num_units, num_hid_layers, lr, momentum, l2_lambda, optimizer, mb_size, activation, stop_thresh, \
         patience, max_epochs, error_fn, early_stopping_alg in product(*iters):
@@ -138,13 +162,17 @@ def do_grid_search(cfg):
         }
         group_of_trial_repeats = []
         for repeat in range(repeats_per_trial):
+            if cv_fold is not None:
+                fold_name = f'cv_fold {cv_fold} of {cfg[CFG.CV_NUM_SPLITS]}, '
+            else:
+                fold_name = ''
             session_name = f'session-{session_num+1}'
             trial_name = f"trial-{session_num+1}.{repeat+1}"
-            print(f'--- Starting trial: {trial_name} of {total_sessions} x {repeats_per_trial} (cfgs x repeats)')
+            print(f'--- Starting trial: {fold_name} {trial_name} of {total_sessions} x {repeats_per_trial} (cfgs x repeats)')
             print({h.name: hparams[h] for h in hparams})
 
             grid_search_logdir = 'logs/hparam_tuning/'
-            trial_results = run_trial(cfg, grid_search_logdir, grid_search_name, trial_name, hparams)
+            trial_results = run_trial(cfg, grid_search_logdir, grid_search_name, trial_name, hparams, cv_fold)
             group_of_trial_repeats.append(trial_results)
             append_trial_info_to_report(grid_search_logdir, grid_search_name, cfg[CFG.DATASET_FILENAME], trial_name,
                                         hparams, trial_results)
@@ -216,7 +244,7 @@ def get_aggregate_results(group_of_trial_repeats, hparams):
     return aggregated_results
 
 
-def run_trial(cfg, grid_search_logdir, grid_search_name, trial_name, hparams, ):
+def run_trial(cfg, grid_search_logdir, grid_search_name, trial_name, hparams, cv_fold):
 
     # trial_dir = os.path.join(log_dir, trial_name)
     # todo: might be better to just export the grid search results to a csv file and visualize it with excel
@@ -224,7 +252,22 @@ def run_trial(cfg, grid_search_logdir, grid_search_name, trial_name, hparams, ):
         # with tf.summary.create_file_writer(trial_dir).as_default():
         #hp.hparams(hparams, trial_id=trial_name)  # Write hyperparameter values (on the report file) for a single trial.
 
-    if cfg[CFG.MODEL_TYPE] == 'monk_custom_nn':
+    if cfg[CFG.MODEL_TYPE] == 'CUP_custom_nn':
+        best_tr_error, epochs_done, final_validation_error, accuracy, crashed \
+            = train_test_custom_nn(hparams, cfg, trial_name=trial_name, grid_search_name=grid_search_name,
+                                   cv_num_plits=cfg[CFG.CV_NUM_SPLITS], cv_fold=cv_fold)
+        results = {
+            RES.epochs_done.name: epochs_done,
+            RES.crashed.name: crashed,
+        }
+        if hparams[HP.ERROR_FN] == 'MSE':
+            results[RES.mse_vl_last.name] = final_validation_error
+            results[RES.mse_tr_last.name] = best_tr_error
+        elif hparams[HP.ERROR_FN] == 'MEE':
+            # todo fixme rename these for MEE
+            results[RES.mse_vl_last.name] = final_validation_error
+            results[RES.mse_tr_last.name] = best_tr_error
+    elif cfg[CFG.MODEL_TYPE] == 'monk_custom_nn':
 
         best_tr_error, epochs_done, final_validation_error, accuracy, crashed \
             = train_test_custom_nn(hparams, cfg, trial_name=trial_name, grid_search_name=grid_search_name)
@@ -299,20 +342,22 @@ def append_trial_info_to_report(trial_dir, grid_search_name, dataset_filename, t
         print("I/O error")
 
 
-def train_test_custom_nn(hparams, cfg, trial_name='', grid_search_name=''):
+def train_test_custom_nn(hparams, cfg, trial_name='', grid_search_name='', cv_num_plits=5, cv_fold=1):
     root_dir = os.getcwd()
     filename = cfg[CFG.DATASET_FILENAME]
     file_path = os.path.join(root_dir, cfg[CFG.DATASET_DIR], filename)
 
-    data = load_and_preprocess_monk_dataset(file_path)
+    data_descr = 'CUP'
+    if cfg[CFG.MODEL_TYPE] == 'monk_custom_nn':
+        data = load_and_preprocess_monk_dataset(file_path)
+        example_number = data.shape[0]
+        train_ratio = 0.813
+        split_id = int(np.round(example_number * train_ratio))
+        print(f'doing {split_id} samples for training, and {example_number - split_id} for validation')
+        training_split, validation_split = data[:split_id], data[split_id:]
+    elif data_descr == 'CUP':
+        training_split, validation_split = get_cup_dev_set_fold_splits(file_path, cv_num_plits, cv_fold)
 
-    example_number = data.shape[0]
-    train_ratio = 0.813
-    split_id = int(np.round(example_number * train_ratio))
-    print(f'doing {split_id} samples for training, and {example_number - split_id} for validation')
-
-    # print('dataset head after shuffling: ')
-    # print(data[:5])
     task = cfg[CFG.TASK_TYPE]
     mini_batch_size = hparams[HP.MB]
     activation = hparams[HP.ACTIV_FUN]  # 'sigmoid' # 'tanh'
@@ -325,6 +370,7 @@ def train_test_custom_nn(hparams, cfg, trial_name='', grid_search_name=''):
     for _ in range(num_hid_layers):
         net_shape.append(num_units_per_hid_layer)
     net_shape.append(out_dim)  # ie net_shape = [17, 10, 1]
+
     lr = hparams[HP.LR]  # 0.05
     alpha_momentum = hparams[HP.MOMENTUM] # 0.12
     lambda_reg = hparams[HP.LAMBDA_L2]  # 0  # 0.001  # 0.005
@@ -340,8 +386,8 @@ def train_test_custom_nn(hparams, cfg, trial_name='', grid_search_name=''):
     test_net = NeuralNet(activation, net_shape, eta=lr, alpha=alpha_momentum, lamda=lambda_reg, mb=mini_batch_size,
                          task=task, verbose=True, dir=trial_subdir, grid_search_dir=grid_search_name)
 
-    test_net.load_training(data[:split_id], out_dim, do_normalization=False)
-    test_net.load_validation(data[split_id:], out_dim)
+    test_net.load_training(training_split, out_dim, do_normalization=False)
+    test_net.load_validation(validation_split, out_dim)
 
     from lib_models.utils import get_hyperparams_descr
     hyperparams_descr = get_hyperparams_descr(filename, str(net_shape), activation, mini_batch_size,
@@ -373,13 +419,19 @@ def train_test_custom_nn(hparams, cfg, trial_name='', grid_search_name=''):
     end_time = datetime.now()
     print('training completed at {} ({} elapsed)'.format(end_time, end_time - start_time))
     final_validation_error, accuracy, vl_misc_rate = test_net.validate_net()
-    print(f'final validation_error = {final_validation_error:0.3f}, final validation accuracy = {accuracy:0.3f}')
+    if accuracy is not None:
+        accuracy_info = f', final validation accuracy = {accuracy:0.3f}'
+    else:
+        accuracy_info = ''
+    print(f'final validation_error = {final_validation_error:0.3f}{accuracy_info}')
 
     # todo: plot actual vs predicted (as accuracy and as MSE smoothing function)
     return best_tr_error, epochs_done, final_validation_error, accuracy, crashed
 
 
 if __name__ == '__main__':
-    do_grid_search(MONK1_CUSTOM_NET_CFG)
+    for cv_fold in range(1, 6):
+        do_grid_search(CUP_CUSTOM_NET_CFG, cv_fold=cv_fold)
+    # do_grid_search(MONK1_CUSTOM_NET_CFG)
     # do_grid_search(MONK2_CUSTOM_NET_CFG)
     # do_grid_search(MONK3_CUSTOM_NET_CFG)

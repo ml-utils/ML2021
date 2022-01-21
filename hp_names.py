@@ -33,6 +33,8 @@ class CFG(AutoName):
     DATASET_FILENAME = auto()
     DATASET_DIR = auto()
     MODEL_TYPE = auto()
+    HP_RANGES = auto()
+    CV_NUM_SPLITS = auto()
 
 
 class RES(AutoName):

@@ -2,11 +2,54 @@ import unittest
 import numpy
 import random
 
+import numpy as np
+
 from datasplitting.datasplits import DataSplits
 from nn import NeuralNet
+from preprocessing import get_cv_cut_points, get_cv_fold_split
 
 
 class UnitTestsGridSearch(unittest.TestCase):
+
+    def test_get_cv_cut_points(self):
+
+        num_splits = 5
+        dataset_size = 120
+        which_fold = 1
+        first_cut_point, second_cut_point = get_cv_cut_points(num_splits, which_fold, dataset_size)
+        self.assertEqual(0, first_cut_point)
+        self.assertEqual(24, second_cut_point)
+        which_fold = 5
+        first_cut_point, second_cut_point = get_cv_cut_points(num_splits, which_fold, dataset_size)
+        self.assertEqual(96, first_cut_point)
+        self.assertEqual(120, second_cut_point)
+
+        # generate an array with 1200 elements
+        column = [i+1 for i in range(120)]
+        column_np = np.asarray(column)
+        dummy_dataset = np.column_stack((column_np, column_np))
+        self.assertEqual(120, len(dummy_dataset))
+
+        print(f'num_splits: {num_splits}')
+        for fold_num in range(1, 6):
+            print(f'fold_num: {fold_num}')
+            # get detaset splits, check that the size is the same as expected and sum as total dataset
+            # todo check che la somma dei due split è uguale al totale
+            # check che il dataset originale non è mutato
+            vl_begin_point, vl_end_point = get_cv_cut_points(num_splits, fold_num, dataset_size)
+            print(f'vl_begin_point, vl_end_point: {vl_begin_point}, {vl_end_point}')
+            print(f'dummy_dataset.shape: {dummy_dataset.shape}')
+            training_split, validation_split = get_cv_fold_split(dummy_dataset, vl_begin_point, vl_end_point)
+            print(f'training_split.shape: {training_split.shape}, validation_split.shape: {validation_split.shape}')
+            # todo, test the numpy shape of the arrays (num columns), also for more then 1 column
+            self.assertEqual(96, len(training_split))
+            self.assertEqual(24, len(validation_split))
+            self.assertEqual(120, len(dummy_dataset))
+
+            '''print('validation split:')
+            print(validation_split)
+            print('training_split :')
+            print(training_split)'''
 
     def test_plot_learning_curve_to_img_file(self):
 

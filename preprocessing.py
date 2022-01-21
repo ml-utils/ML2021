@@ -10,6 +10,39 @@ CUP_CFG = {'shortname': 'MLCUP2021', 'filename': 'ML-CUP21-TR.csv',
                                        'datatypes': MLCUP2021datatypes}
 
 
+def get_cup_dev_set_fold_splits(filepath, cv_num_plits=5, which_fold=1):
+    sep = ','
+    dataset = np.loadtxt(filepath, delimiter=sep)  # , converters=converters, fmt=config['datatypes']
+    dataset = remove_id_col(dataset, CUP_CFG)
+    print('data loaded, shape: ', dataset.shape)
+    print(f'dtype: {dataset.dtype}')
+
+    # dev size = 1200
+    dataset_size = dataset.shape[0]
+
+    vl_begin_point, vl_end_point = get_cv_cut_points(cv_num_plits, which_fold, dataset_size)
+    training_split, validation_split = get_cv_fold_split(dataset, vl_begin_point, vl_end_point)
+    return training_split, validation_split
+
+
+def get_cv_fold_split(dataset, vl_begin_point, vl_end_point):
+
+    validation_split = dataset[vl_begin_point:vl_end_point]
+    training_split = np.concatenate((dataset[0:vl_begin_point], dataset[vl_end_point:]), axis=0)
+
+    return training_split, validation_split
+
+
+def get_cv_cut_points(num_splits, which_fold, dataset_size):
+    # todo: address case of splits with mod != 0 (so some patterns should be discarded)
+
+    which_fold
+    pattern_per_split = dataset_size // num_splits  # integer division, todo: support "imperfect" split points
+    first_cut_point = (which_fold - 1) * pattern_per_split
+    second_cut_point = which_fold * pattern_per_split
+    return first_cut_point, second_cut_point
+
+
 def load_and_preprocess_monk_dataset(filepath):
     print(f'loading {filepath}')
     import pandas as pd
