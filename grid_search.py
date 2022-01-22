@@ -332,12 +332,25 @@ def append_trial_info_to_report(trial_dir, grid_search_name, dataset_filename, t
     trial_info.update(results)
 
     print(f'appending {trial_name} results to {file_abs_path}')
-    file_already_exists = os.path.exists(file_abs_path)
-    write_mode = 'a' if file_already_exists else 'w'
+
     # shortening field names for csv readability
     # hp_names = [h.name if hasattr(h, 'name') else h for h in trial_info]
     shorten_dict_keynames(trial_info)
 
+    trial_info_csv_writer_helper(file_abs_path, trial_dir, trial_info)
+
+
+def trial_info_csv_writer_helper(file_abs_path, trial_dir, trial_info):
+
+    file_already_exists = os.path.exists(file_abs_path)
+    write_mode = 'a' if file_already_exists else 'w'
+
+    if not os.path.isdir(trial_dir):
+        try:
+            os.makedirs(trial_dir)
+            print(f'created dir {os.path.abspath(trial_dir)}')
+        except IOError as e:
+            print(f"I/O error: {e}")
     try:
         with open(file_abs_path, write_mode, newline='') as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=trial_info.keys(), delimiter=';')
