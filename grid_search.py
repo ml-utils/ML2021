@@ -228,8 +228,16 @@ def get_aggregate_results(group_of_trial_repeats, hparams):
                 values.append(trial_results[numeric_metric])
                 metric_is_decimal = True
         if metric_is_decimal:
-            aggregated_results[numeric_metric + '-median'] = f'{statistics.median(values):0.3f}'
-            aggregated_results[numeric_metric + '-sd'] = f'{statistics.stdev(values):0.3f}'
+            if len(values) == 0:
+                print(f'Warning/Error: trial results for {numeric_metric} are empty!')
+                print(f'{group_of_trial_repeats}')
+            else:
+                try:
+                    aggregated_results[numeric_metric + '-median'] = f'{statistics.median(values):0.3f}'
+                    aggregated_results[numeric_metric + '-sd'] = f'{statistics.stdev(values):0.3f}'
+                except Exception as e:
+                    print(f'Warning/Error: unable to aggregate trial results for {numeric_metric} are empty!')
+                    print(f'{group_of_trial_repeats}')
 
     crashed_trials_in_session = 0
     for trial_results in group_of_trial_repeats:
@@ -252,20 +260,20 @@ def run_trial(cfg, grid_search_logdir, grid_search_name, trial_name, hparams, cv
         #hp.hparams(hparams, trial_id=trial_name)  # Write hyperparameter values (on the report file) for a single trial.
 
     if cfg[CFG.MODEL_TYPE] == 'CUP_custom_nn':
-        best_tr_error, epochs_done, final_validation_error, accuracy, crashed \
+        best_tr_error, epochs_done, final_validation_error, accuracy, crashed, final_MEE_error \
             = train_test_custom_nn(hparams, cfg, trial_name=trial_name, grid_search_name=grid_search_name,
                                    cv_num_plits=cfg[CFG.CV_NUM_SPLITS], cv_fold=cv_fold)
         results = {
             RES.epochs_done.name: epochs_done,
             RES.crashed.name: crashed,
         }
-        if hparams[HP.ERROR_FN] == 'MSE':
+        if final_validation_error is not None:
             results[RES.mse_vl_last.name] = final_validation_error
+        if best_tr_error is not None:
             results[RES.mse_tr_last.name] = best_tr_error
-        elif hparams[HP.ERROR_FN] == 'MEE':
-            # todo fixme rename these for MEE
-            results[RES.mse_vl_last.name] = final_validation_error
-            results[RES.mse_tr_last.name] = best_tr_error
+        if final_MEE_error is not None:
+            results[RES.mee_vl_last.name] = final_validation_error
+
     elif cfg[CFG.MODEL_TYPE] == 'monk_custom_nn':
 
         best_tr_error, epochs_done, final_validation_error, accuracy, crashed \
@@ -399,7 +407,7 @@ def train_test_custom_nn(hparams, cfg, trial_name='', grid_search_name='', cv_nu
 
     grid_search_dir = os.path.join(os.getcwd(), grid_search_name)
     try:
-        best_tr_error, epochs_done = test_net.batch_training(threshold=stopping_threshold, max_epochs=max_epochs,
+        best_tr_error, epochs_done, final_MEE_error = test_net.batch_training(threshold=stopping_threshold, max_epochs=max_epochs,
                                                          stopping=early_stopping_alg, patience=patience,
                                                          verbose=False, hyperparams_for_plot=hyperparams_descr,
                                                              trial_name=trial_name, save_plot_to_file=False,
@@ -425,7 +433,7 @@ def train_test_custom_nn(hparams, cfg, trial_name='', grid_search_name='', cv_nu
     print(f'final validation_error = {final_validation_error:0.3f}{accuracy_info}')
 
     # todo: plot actual vs predicted (as accuracy and as MSE smoothing function)
-    return best_tr_error, epochs_done, final_validation_error, accuracy, crashed
+    return best_tr_error, epochs_done, final_validation_error, accuracy, crashed, final_MEE_error
 
 
 if __name__ == '__main__':

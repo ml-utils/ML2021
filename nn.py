@@ -461,6 +461,7 @@ class NeuralNet:
         example_number = self.training_set.shape[0] - self.training_set.shape[0] % self.mb
         num_of_batches = example_number / self.mb
         best_epoch_for_stopping = 0
+        done_epochs = 0
         for epoch in range(max_epochs):
             self.epoch_SE = 0
             batch_rng.shuffle(self.training_set) # shuffle training set
@@ -510,15 +511,17 @@ class NeuralNet:
             if self.should_stop_training(stopping, threshold, max_epochs, epoch, best_epoch_for_stopping, patience,
                                          validate_errors, train_errors, avg_euclidean_norm_grad_last_layer):
                 break
+            done_epochs = epoch
 
-        print(f'done {epoch+1} epochs')
+        print(f'run for {done_epochs + 1} epochs')
         best_tr_error = train_errors[best_epoch_for_stopping]
         epochs_done = best_epoch_for_stopping
 
         summary_path = os.path.join(self.net_dir, 'net_summary.json')
+        final_MEE_error, _, _ = self.validate_net(error_func='MEE')  # .tolist()
         summary = {'hyperparameters': self.hyperparameters, 'training errors': train_errors[:epoch+1].tolist(),
                    'validation errors': validate_errors[:epoch+1].tolist(), 'shift vector': self.shift_vector.tolist(),
-                   'scale vector': self.scale_vector.tolist(), 'final MEE': self.validate_net(error_func='MEE').tolist()}
+                   'scale vector': self.scale_vector.tolist(), 'final MEE': [final_MEE_error]}
 
         if self.task == 'classification':
             summary['misclassification'] = vl_misclassification_rates[:epoch+1].tolist()
@@ -542,7 +545,7 @@ class NeuralNet:
                                                     epoch, hyperparams_for_plot, self.task, self.error_func,
                                                     self.net_dir, trial_name='',
                                                     gridsearch_descr=gridsearch_descr)
-        return best_tr_error, epochs_done
+        return best_tr_error, epochs_done, final_MEE_error
 
     def should_stop_training(self, stopping, threshold, max_epochs, epoch, best_epoch_for_stopping, patience,
                              validate_errors, train_errors, euclidean_norm_grad_last_layer):

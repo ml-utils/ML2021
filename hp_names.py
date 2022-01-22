@@ -42,6 +42,8 @@ class RES(AutoName):
     mse_vl_last = auto()
     loss_tr_last = auto()
     mse_tr_last = auto()
+    mee_tr_last = auto()
+    mee_vl_last = auto()
     accuracy = auto()
     epochs_done = auto()
     crashed = auto()
