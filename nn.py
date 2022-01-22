@@ -95,7 +95,7 @@ class Layer:
         self.latest_in[-1] = 1  # last column of latest_in is always set to 1 to implement bias-as-matrix-column
 
     @classmethod
-    def load_file(cls, base_path, layer_number, activation, act_parameters=(1, 1)):
+    def load_file(cls, base_path, layer_number, activation, act_parameters=(1.7159, 2/3)):
 
         weight_path = os.path.join(base_path, 'layer_{}_weights.csv'.format(layer_number))
         delta_path = os.path.join(base_path, 'layer_{}_deltas.csv'.format(layer_number))
