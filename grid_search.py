@@ -26,9 +26,9 @@ CUP_CUSTOM_NET_HP_RANGES = {
     HP.MOMENTUM: hp.HParam(HP.MOMENTUM, hp.Discrete([0.004, 0.04])),
     HP.LAMBDA_L2: hp.HParam(HP.LAMBDA_L2, hp.RealInterval(min_value=0.0005, max_value=0.005)),
     HP.MB: hp.HParam(HP.MB, hp.Discrete([8, 32])),
-    HP.ACTIV_FUN: hp.HParam(HP.ACTIV_FUN, hp.Discrete(['tanh', 'sigmoid'])),
+    HP.ACTIV_FUN: hp.HParam(HP.ACTIV_FUN, hp.Discrete(['sigmoid'])),
     HP.STOPPING_THRESH: hp.HParam(HP.STOPPING_THRESH, hp.Discrete([0.001])),
-    HP.PATIENCE: hp.HParam(HP.PATIENCE, hp.Discrete([150])),
+    HP.PATIENCE: hp.HParam(HP.PATIENCE, hp.Discrete([100])),
     HP.MAX_EPOCHS: hp.HParam(HP.MAX_EPOCHS, hp.Discrete([2000])),
     HP.ERROR_FN: hp.HParam(HP.ERROR_FN, hp.Discrete(['MSE'])),  # MSE
     HP.EARLY_STOP_ALG: hp.HParam(HP.EARLY_STOP_ALG, hp.Discrete(['MSE2_val'])),
@@ -437,9 +437,25 @@ def train_test_custom_nn(hparams, cfg, trial_name='', grid_search_name='', cv_nu
 
 
 if __name__ == '__main__':
+    import sys
 
-    for cv_fold in range(1, CUP_CUSTOM_NET_CFG[CFG.CV_NUM_SPLITS] + 1):
+    if len(sys.argv) <= 1:
+        print(f'No command line options specified, using default (all {CUP_CUSTOM_NET_CFG[CFG.CV_NUM_SPLITS]} folds)')
+        for cv_fold in range(1, CUP_CUSTOM_NET_CFG[CFG.CV_NUM_SPLITS] + 1):
+            do_grid_search(CUP_CUSTOM_NET_CFG, cv_fold=cv_fold)
+    elif len(sys.argv) == 2 and sys.argv[1].isdigit():
+        cv_fold = sys.argv[1]
+        cv_fold = int(cv_fold)
+        # todo: check is cv_fold btw num folds
+        if cv_fold > CUP_CUSTOM_NET_CFG[CFG.CV_NUM_SPLITS]:
+            print(f'Error: the cv_fold specified ({cv_fold}) is greather then the number of folds {CUP_CUSTOM_NET_CFG[CFG.CV_NUM_SPLITS]}')
+            sys.exit()
+
+        print(f'Command line arg: doing fold n. {cv_fold}')
         do_grid_search(CUP_CUSTOM_NET_CFG, cv_fold=cv_fold)
+    else:
+        print(f'Unregognized command line args: {sys.argv}')
+
     # do_grid_search(MONK1_CUSTOM_NET_CFG)
     # do_grid_search(MONK2_CUSTOM_NET_CFG)
     # do_grid_search(MONK3_CUSTOM_NET_CFG)
