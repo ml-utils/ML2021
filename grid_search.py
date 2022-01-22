@@ -26,7 +26,7 @@ CUP_CUSTOM_NET_HP_RANGES = {
     HP.MOMENTUM: hp.HParam(HP.MOMENTUM, hp.Discrete([0.004, 0.04])),
     HP.LAMBDA_L2: hp.HParam(HP.LAMBDA_L2, hp.RealInterval(min_value=0.0005, max_value=0.005)),
     HP.MB: hp.HParam(HP.MB, hp.Discrete([8, 32])),
-    HP.ACTIV_FUN: hp.HParam(HP.ACTIV_FUN, hp.Discrete(['sigmoid'])),
+    HP.ACTIV_FUN: hp.HParam(HP.ACTIV_FUN, hp.Discrete(['tanh'])),
     HP.STOPPING_THRESH: hp.HParam(HP.STOPPING_THRESH, hp.Discrete([0.001])),
     HP.PATIENCE: hp.HParam(HP.PATIENCE, hp.Discrete([100])),
     HP.MAX_EPOCHS: hp.HParam(HP.MAX_EPOCHS, hp.Discrete([2000])),
