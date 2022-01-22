@@ -1,15 +1,31 @@
 import unittest
 import numpy
 import random
+import os
+import csv
 
 import numpy as np
 
-from datasplitting.datasplits import DataSplits
-from nn import NeuralNet
 from preprocessing import get_cv_cut_points, get_cv_fold_split
+from grid_search import trial_info_csv_writer_helper
 
 
 class UnitTestsGridSearch(unittest.TestCase):
+
+    def test_write_report_to_logdir(self):
+
+        test_dirs = '.\\test_dir\\test_subdir'
+        filename = 'some-text-file'
+        file_abs_path = os.path.join(test_dirs, filename + '.txt')
+        trial_info = {'trial': 'trial_name', 'trial_number': 0}
+
+        # todo verify folder does not already exists
+        self.assertFalse(os.path.isdir(test_dirs), msg=f'{os.path.abspath(test_dirs)}')
+
+        trial_info_csv_writer_helper(file_abs_path, test_dirs, trial_info)
+
+        # todo verify folder created
+        self.assertTrue(os.path.isdir(test_dirs), msg=f'{os.path.abspath(test_dirs)}')
 
     def test_get_cv_cut_points(self):
 
@@ -52,6 +68,7 @@ class UnitTestsGridSearch(unittest.TestCase):
             print(training_split)'''
 
     def test_plot_learning_curve_to_img_file(self):
+        from nn import NeuralNet
 
         plots_count = 400 #
         for current in range(plots_count):
