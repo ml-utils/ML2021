@@ -345,8 +345,8 @@ def append_trial_info_to_report(trial_dir, grid_search_name, dataset_filename, t
                 writer.writeheader()
             writer.writerow(trial_info)
 
-    except IOError:
-        print("I/O error")
+    except IOError as e:
+        print(f"I/O error: {e}")
 
 
 def train_test_custom_nn(hparams, cfg, trial_name='', grid_search_name='', cv_num_plits=5, cv_fold=1):
