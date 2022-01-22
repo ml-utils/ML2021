@@ -517,8 +517,8 @@ class NeuralNet:
 
         summary_path = os.path.join(self.net_dir, 'net_summary.json')
         summary = {'hyperparameters': self.hyperparameters, 'training errors': train_errors[:epoch+1].tolist(),
-                   'validation errors': validate_errors[:epoch+1].tolist(), 'shift vector': self.shift_vector,
-                   'scale vector': self.scale_vector, 'final MEE': self.validate_net(error_func='MEE')}
+                   'validation errors': validate_errors[:epoch+1].tolist(), 'shift vector': self.shift_vector.tolist(),
+                   'scale vector': self.scale_vector.tolist(), 'final MEE': self.validate_net(error_func='MEE').tolist()}
 
         if self.task == 'classification':
             summary['misclassification'] = vl_misclassification_rates[:epoch+1].tolist()
