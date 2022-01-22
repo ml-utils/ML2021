@@ -30,7 +30,7 @@ CUP_CUSTOM_NET_HP_RANGES = {
     HP.STOPPING_THRESH: hp.HParam(HP.STOPPING_THRESH, hp.Discrete([0.001])),
     HP.PATIENCE: hp.HParam(HP.PATIENCE, hp.Discrete([150])),
     HP.MAX_EPOCHS: hp.HParam(HP.MAX_EPOCHS, hp.Discrete([2000])),
-    HP.ERROR_FN: hp.HParam(HP.ERROR_FN, hp.Discrete(['MEE'])),  # MSE
+    HP.ERROR_FN: hp.HParam(HP.ERROR_FN, hp.Discrete(['MSE'])),  # MSE
     HP.EARLY_STOP_ALG: hp.HParam(HP.EARLY_STOP_ALG, hp.Discrete(['MSE2_val'])),
     # HP.DROPOUT: hp.HParam('dropout', hp.Discrete([0.1, 0.2])),
 }
@@ -272,7 +272,7 @@ def run_trial(cfg, grid_search_logdir, grid_search_name, trial_name, hparams, cv
         if best_tr_error is not None:
             results[RES.mse_tr_last.name] = best_tr_error
         if final_MEE_error is not None:
-            results[RES.mee_vl_last.name] = final_validation_error
+            results[RES.mee_vl_last.name] = final_MEE_error
 
     elif cfg[CFG.MODEL_TYPE] == 'monk_custom_nn':
 
