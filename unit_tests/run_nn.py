@@ -9,7 +9,7 @@ from numpy.random import default_rng
 # Local application imports
 from lib_models.utils import get_hyperparams_descr
 from nn import NeuralNet
-from preprocessing import load_and_preprocess_monk_dataset, get_cup_dev_set_fold_splits
+from preprocessing import load_and_preprocess_monk_dataset, get_cup_dev_set_fold_splits, get_cup_dataset_from_file
 
 
 def run_nn_cup(which_cv_fold=1):
@@ -148,14 +148,16 @@ def command_line_training():
         print(f'Unregognized command line args: {sys.argv}')
 
 
-def command_line_load_and_assess_net():
+def command_line_load_and_assess_net(verbose=False):
     # todo:
     # load net from file, with final weight values
     # this is just for testing, need to retrain net with these params, but normalization and denormalization in MEE
     best_weights_path = '..\\report_grid_searches\\chosen_model\\20220123-153347\\latest'
     dev_dataset_path = '..\\datasplitting\\assets\\ml-cup21-internal_splits\\dev_split.csv'
-    # internal_testset_path = '..\\datasplitting\\assets\\ml-cup21-internal_splits\\test_split.csv'
+    internal_testset_path = '..\\datasplitting\\assets\\ml-cup21-internal_splits\\test_split.csv'
     print(f'loading net final/best weights from {best_weights_path}')
+    print(f'dev set file: {dev_dataset_path}')
+    print(f'internal_testset_path file: {internal_testset_path}')
 
     error_fn = 'MSE'  # MSE, MEE
     task = 'regression'
@@ -177,21 +179,31 @@ def command_line_load_and_assess_net():
     training_split, validation_split = get_cup_dev_set_fold_splits(dev_dataset_path,
                                                                    cv_num_plits=cv_num_plits,
                                                                    which_fold=which_cv_fold)
+    test_set = get_cup_dataset_from_file(internal_testset_path)
+
     net.load_training(training_split, out_dim)
     error_MEE_tr = net.evaluate_original_error(set=training_split, error_fn='MEE')
     error_MEE_vl = net.evaluate_original_error(set=validation_split, error_fn='MEE')
     error_MSE_tr = net.evaluate_original_error(set=training_split, error_fn='MSE')
     error_MSE_vl = net.evaluate_original_error(set=validation_split, error_fn='MSE')
-
-    # todo print eval time
     print(f'final MEE errors (no normalization): TR: {error_MEE_tr}, VL: {error_MEE_vl}, '  # , TS: {}
           f'final MSE erorors (no normalization): TR: {error_MSE_tr}, VL: {error_MSE_vl}, ')
 
-    net.load_validation(validation_split, out_dim)
-    norml_error_MEE_vl, _, _ = net.validate_net(error_func='MEE')
-    norml_error_MSE_vl, _, _ = net.validate_net(error_func='MSE')
-    print(f'for comparison/double check, the vl errors with normalization are: '
-          f'MEE: {norml_error_MEE_vl}, MSE: {norml_error_MSE_vl}')
+    error_MEE_testset = net.evaluate_original_error(set=test_set, error_fn='MEE')
+    error_MSE_testset = net.evaluate_original_error(set=test_set, error_fn='MSE')
+
+    print(f'The assessment of the model on the test set is: MEE: {error_MEE_testset}, '
+          f'MSE: {error_MSE_testset}')
+    print(f'TR: MEE: {error_MEE_tr} MSE: {error_MSE_tr}')
+    print(f'VL: MEE: {error_MEE_vl} MSE: {error_MSE_vl}')
+    print(f'TS: MEE: {error_MEE_testset} MSE: {error_MSE_testset}')
+
+    if verbose:
+        net.load_validation(validation_split, out_dim)
+        norml_error_MEE_vl, _, _ = net.validate_net(error_func='MEE')
+        norml_error_MSE_vl, _, _ = net.validate_net(error_func='MSE')
+        print(f'for comparison/double check, the vl errors with normalization are: '
+              f'MEE: {norml_error_MEE_vl}, MSE: {norml_error_MSE_vl}')
 
 
 if __name__ == '__main__':
