@@ -456,7 +456,7 @@ class NeuralNet:
     # trains neural net for fixed number of epochs using mini-batch method; also saves MSE for each epoch on file
     def batch_training(self, stopping='epochs', patience=50, threshold=0.01, max_epochs=500, error_func=None,
                        verbose=False, hyperparams_for_plot='', trial_name='', save_plot_to_file=True,
-                       grid_search_dir_for_plots='', gridsearch_descr=''):
+                       grid_search_dir_for_plots='', gridsearch_descr='single_run'):
 
         if error_func is None:
             error_func = self.error_func
@@ -563,11 +563,11 @@ class NeuralNet:
             plot_learning_curve_to_img_file(validate_errors, train_errors, vl_misclassification_rates, epoch,
                                                       hyperparams_for_plot, self.task, self.error_func, self.net_dir,
                                                       trial_name)
-        else:
-            append_learning_curve_plot_data_to_file(validate_errors, train_errors, vl_misclassification_rates,
-                                                    epoch, hyperparams_for_plot, self.task, self.error_func,
-                                                    self.net_dir, trial_name='',
-                                                    gridsearch_descr=gridsearch_descr)
+
+        append_learning_curve_plot_data_to_file(validate_errors, train_errors, vl_misclassification_rates,
+                                                epoch, hyperparams_for_plot, self.task, self.error_func,
+                                                self.net_dir, trial_name='',
+                                                gridsearch_descr=gridsearch_descr)
         return best_tr_error, epochs_done, final_MEE_error
 
     def should_stop_training(self, stopping, threshold, max_epochs, epoch, best_epoch_for_stopping, patience,
@@ -716,9 +716,6 @@ class NeuralNet:
         return error
 
 
-
-
-
 if __name__ == '__main__':
     # trains basic neural network on the airfoil dataset
     root_dir = os.getcwd()
@@ -742,5 +739,5 @@ if __name__ == '__main__':
     print(f'initial validation_error = {test_net.validate_net()[0]:.3f}')
     test_net.batch_training()
     end_time = datetime.now()
-    print('training completed at {} ({} elapsed)'.format(end_time, end_time-start_time))
+    print('training completed at {} ({} elapsed)'.format(end_time, end_time - start_time))
     print(f'final validation_error = {test_net.validate_net()[0]}')
