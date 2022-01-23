@@ -69,7 +69,7 @@ class Layer:
 
         else:
             self.weights = kwargs['weights']
-            self.delta_weights = kwargs['dweights']
+            self.delta_weights = kwargs['deltas']
 
         self.delta_weights_old = np.zeros([fan_out, fan_in + 1])
 
@@ -95,7 +95,7 @@ class Layer:
         self.latest_in[-1] = 1  # last column of latest_in is always set to 1 to implement bias-as-matrix-column
 
     @classmethod
-    def load_file(cls, base_path, layer_number, activation, act_parameters=(1, 1)):
+    def load_file(cls, base_path, layer_number, activation, act_parameters=(1.7159, 2/3)):
 
         weight_path = os.path.join(base_path, 'layer_{}_weights.csv'.format(layer_number))
         delta_path = os.path.join(base_path, 'layer_{}_deltas.csv'.format(layer_number))
@@ -261,7 +261,7 @@ class NeuralNet:
         layer_files = [file for file in all_files if (file[:6] == 'layer_' and file[-4:] == '.csv')]
         if (len(layer_files) % 2):
             ValueError('Mismatch in number of layer files in folder {}'.format(path))
-        num_of_layers = len(layer_files)/2
+        num_of_layers = len(layer_files)//2
 
         for i in range(num_of_layers):
             lay = Layer.load_file(path, i, activation)
@@ -270,6 +270,24 @@ class NeuralNet:
         net.layers[-1].switch_role_to_out_layer(task)
         net.fan_in = net.layers[0].fan_in
         net.fan_out = net.layers[-1].fan_out
+
+        return net
+
+    # loads trained net based on latest state + info gathered from net_summary.json
+    # path (string): filepath to training run (folder containing net_summary.json, 'latest' and all 'epoch_x')
+    @classmethod
+    def load_latest(cls, path):
+
+        state_path = os.path.join(path, 'latest')
+        summary_path = os.path.join(path, 'net_summary.json')
+
+        with open(summary_path, 'r') as infile:
+            summary = json.load(infile)
+
+        hyperpars = summary['hyperparameters']
+
+        net = NeuralNet.load_net(state_path, hyperpars['hidden activation'], hyperpars['eta'], hyperpars['alpha'],
+                                 hyperpars['lambda'], hyperpars['mb'], hyperpars['task'], hyperpars['error'])
 
         return net
 
