@@ -17,7 +17,7 @@ from preprocessing import load_and_preprocess_monk_dataset, get_cup_dev_set_fold
 
 
 def run_nn_cup(which_cv_fold=1):
-    from grid_search import CUP_CUSTOM_NET_CFG
+    from datasets_cfgs import CUP_CUSTOM_NET_CFG
     from hp_names import CFG
     '''
         trains our custom neural network on the cup dataset
@@ -29,18 +29,17 @@ def run_nn_cup(which_cv_fold=1):
     training_split, validation_split = get_cup_dev_set_fold_splits(input_file_path,
                                                                                  cv_num_plits=cv_num_plits,
                                                                                  which_fold=which_cv_fold)
-
     error_fn = 'MSE'  # MSE, MEE
     task = 'regression'
     adaptive_lr = 'SGD constant lr'
     out_dim = 2
 
     net_shape = [10, 10, 10, out_dim]
-    activation = 'tanh'  # 'sigmoid' # 'tanh'
-    mini_batch_size = 50  # 80 # 32
-    lr = 0.1  # 0.01  # 1e-2 # 1e-4
+    lr = 0.01  # 0.01  # 1e-2 # 1e-4
     alpha_momentum = 0.04  # 5e-2
     lambda_reg = 0.0005  # 0.0005  # 0.001  # 0.005 # 5e-7
+    mini_batch_size = 32  # 80 # 32
+    activation = 'tanh'  # 'sigmoid' # 'tanh'
 
     stopping_threshold = 0.001  #0.00001  # 0.01
     max_epochs = 2000
@@ -130,7 +129,7 @@ def run_nn_only_classification():
 
 def command_line_training():
 
-    from grid_search import CUP_CUSTOM_NET_CFG
+    from datasets_cfgs import CUP_CUSTOM_NET_CFG
     from hp_names import CFG
     # todo: collect training history to plot learning curve
     # run_nn_and_tf()
@@ -204,7 +203,7 @@ def command_line_load_and_assess_net():
 if __name__ == '__main__':
     import sys
 
-    train_and_evaluate = False
+    train_and_evaluate = True
 
     if train_and_evaluate:
         command_line_training()

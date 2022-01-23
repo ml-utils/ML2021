@@ -9,9 +9,9 @@ from decimal import Decimal
 # Third party imports
 import numpy as np
 from tensorboard.plugins.hparams import api as hp
-import tensorflow as tf
 
 # Local application imports
+from datasets_cfgs import CUP_CUSTOM_NET_CFG
 from hp_names import HP, CFG, RES
 from lib_models.grid_search_tf import train_test_model_tf
 from nn import NeuralNet
@@ -19,13 +19,13 @@ from preprocessing import load_and_preprocess_monk_dataset, get_cup_dev_set_fold
 
 
 CUP_CUSTOM_NET_HP_RANGES = {
-    HP.UNITS_PER_LAYER: hp.HParam(HP.UNITS_PER_LAYER, hp.Discrete([10, 20])),
+    HP.UNITS_PER_LAYER: hp.HParam(HP.UNITS_PER_LAYER, hp.Discrete([20])),
     HP.N_HID_LAYERS: hp.HParam(HP.N_HID_LAYERS, hp.Discrete([2])),
     HP.OPTIMIZER: hp.HParam(HP.OPTIMIZER, hp.Discrete(['SGD constant lr'])),
     HP.LR: hp.HParam(HP.LR, hp.Discrete([0.01])),
-    HP.MOMENTUM: hp.HParam(HP.MOMENTUM, hp.Discrete([0.16])),
-    HP.LAMBDA_L2: hp.HParam(HP.LAMBDA_L2, hp.RealInterval(min_value=0.0005, max_value=0.0005)),
-    HP.MB: hp.HParam(HP.MB, hp.Discrete([100])),
+    HP.MOMENTUM: hp.HParam(HP.MOMENTUM, hp.Discrete([0.04])),
+    HP.LAMBDA_L2: hp.HParam(HP.LAMBDA_L2, hp.RealInterval(min_value=0.0001, max_value=0.0001)),
+    HP.MB: hp.HParam(HP.MB, hp.Discrete([50])),
     HP.ACTIV_FUN: hp.HParam(HP.ACTIV_FUN, hp.Discrete(['tanh'])),
     HP.STOPPING_THRESH: hp.HParam(HP.STOPPING_THRESH, hp.Discrete([0.001])),
     HP.PATIENCE: hp.HParam(HP.PATIENCE, hp.Discrete([75])),
@@ -61,47 +61,6 @@ MONK_CUSTOM_NET_HP_RANGES = {
 # HIST_VAL_MSE = 'val_mse'
 # 'accuracy'
 
-
-CUP_CUSTOM_NET_CFG = {
-    CFG.OUT_DIM: 2,
-    CFG.INPUT_DIM: 10,
-    CFG.TASK_TYPE: 'regression',
-    CFG.MODEL_TYPE: 'CUP_custom_nn',
-    CFG.DATASET_FILENAME: 'dev_split.csv',
-    CFG.DATASET_DIR: '.\\datasplitting\\assets\\ml-cup21-internal_splits\\',
-    CFG.CV_NUM_SPLITS: 3,
-    CFG.HP_RANGES: CUP_CUSTOM_NET_HP_RANGES,
-}
-
-MONK1_CUSTOM_NET_CFG = {
-    CFG.OUT_DIM: 1,
-    CFG.INPUT_DIM: 17,
-    CFG.TASK_TYPE: 'classification',
-    CFG.MODEL_TYPE: 'monk_custom_nn',
-    CFG.DATASET_FILENAME: 'monks-1.train',
-    CFG.DATASET_DIR: '.\\datasplitting\\assets\\monk\\',
-    CFG.HP_RANGES: MONK_CUSTOM_NET_HP_RANGES,
-}
-
-MONK2_CUSTOM_NET_CFG = {
-    CFG.OUT_DIM: 1,
-    CFG.INPUT_DIM: 17,
-    CFG.TASK_TYPE: 'classification',
-    CFG.MODEL_TYPE: 'monk_custom_nn',
-    CFG.DATASET_FILENAME: 'monks-2.train',
-    CFG.DATASET_DIR: '.\\datasplitting\\assets\\monk\\',
-    CFG.HP_RANGES: MONK_CUSTOM_NET_HP_RANGES,
-}
-
-MONK3_CUSTOM_NET_CFG = {
-    CFG.OUT_DIM: 1,
-    CFG.INPUT_DIM: 17,
-    CFG.TASK_TYPE: 'classification',
-    CFG.MODEL_TYPE: 'monk_custom_nn',
-    CFG.DATASET_FILENAME: 'monks-3.train',
-    CFG.DATASET_DIR: '.\\datasplitting\\assets\\monk\\',
-    CFG.HP_RANGES: MONK_CUSTOM_NET_HP_RANGES,
-}
 
 # todo: pass dataset filename and trial name in the grid search to the batchtraining method to save
 # the error plot img file with a more descriptive name
@@ -190,9 +149,6 @@ def do_grid_search(cfg, cv_fold=None):
     # todo: explicit use of alghorithm for weights and bias initialization
     # todo: saving initializations, so can be reused the same for each session (and there are as many as the repeats)
     # todo: make a custom normalizer/denormalizer for output targets
-
-    # Visualize the results in TensorBoard's HParams plugin
-    # % tensorboard - -logdir logs / hparam_tuning
 
 
 def get_aggregate_results(group_of_trial_repeats, hparams):
