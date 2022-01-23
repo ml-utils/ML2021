@@ -406,7 +406,7 @@ def train_test_custom_nn(hparams, cfg, trial_name='', grid_search_name='', cv_nu
     test_net = NeuralNet(activation, net_shape, eta=lr, alpha=alpha_momentum, lamda=lambda_reg, mb=mini_batch_size,
                          task=task, verbose=True, dir=trial_subdir, grid_search_dir=grid_search_name)
 
-    test_net.load_training(training_split, out_dim, do_normalization=False)
+    test_net.load_training(training_split, out_dim)  # , do_normalization=False
     test_net.load_validation(validation_split, out_dim)
 
     from lib_models.utils import get_hyperparams_descr
