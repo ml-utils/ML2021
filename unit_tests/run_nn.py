@@ -10,36 +10,41 @@ import numpy as np
 from numpy.random import default_rng
 
 # Local application imports
-import preprocessing
+
 from lib_models.utils import get_hyperparams_descr
 from nn import NeuralNet
-from preprocessing import load_and_preprocess_monk_dataset, remove_id_col
+from preprocessing import load_and_preprocess_monk_dataset, get_cup_dev_set_fold_splits
 
 
-def run_nn_cup():
+def run_nn_cup(which_cv_fold=1):
+    from grid_search import CUP_CUSTOM_NET_CFG
+    from hp_names import CFG
     '''
         trains our custom neural network on the cup dataset
     :return:
     '''
-
+    cv_num_plits = CUP_CUSTOM_NET_CFG[CFG.CV_NUM_SPLITS]
     root_dir = os.getcwd()
     input_file_path = os.path.join(root_dir, '..\\datasplitting\\assets\\ml-cup21-internal_splits\\dev_split.csv')
-    training_split, validation_split = preprocessing.get_cup_dev_set_fold_splits(input_file_path)
+    training_split, validation_split = get_cup_dev_set_fold_splits(input_file_path,
+                                                                                 cv_num_plits=cv_num_plits,
+                                                                                 which_fold=which_cv_fold)
 
-    error_fn = 'MEE'  # MSE, MEE
+    error_fn = 'MSE'  # MSE, MEE
     task = 'regression'
-    activation = 'tanh'  # 'sigmoid' # 'tanh'
     adaptive_lr = 'SGD constant lr'
     out_dim = 2
 
-    net_shape = [10, 10, out_dim]
-    mini_batch_size = 8  #20
-    lr = 0.01  # 1e-2 # 1e-4
+    net_shape = [10, 10, 10, out_dim]
+    activation = 'tanh'  # 'sigmoid' # 'tanh'
+    mini_batch_size = 50  # 80 # 32
+    lr = 0.1  # 0.01  # 1e-2 # 1e-4
     alpha_momentum = 0.04  # 5e-2
-    lambda_reg = 0.0005  # 0.001  # 0.005 # 5e-7
+    lambda_reg = 0.0005  # 0.0005  # 0.001  # 0.005 # 5e-7
+
     stopping_threshold = 0.001  #0.00001  # 0.01
     max_epochs = 2000
-    patience = 50
+    patience = 50  # 75
     early_stopping = 'MSE2_val'  # 'EuclNormGrad'  # 'MSE2_val'
 
     test_net = NeuralNet(activation, net_shape, eta=lr, alpha=alpha_momentum, lamda=lambda_reg, mb=mini_batch_size,
@@ -52,7 +57,7 @@ def run_nn_cup():
     hyperparams_descr = get_hyperparams_descr('CUP_2021dev', str(net_shape), activation, mini_batch_size,
                                               error_fn=error_fn, l2_lambda=lambda_reg, momentum=alpha_momentum,
                                               learning_rate=lr, optimizer=adaptive_lr)
-
+    print(f'{hyperparams_descr}')
     start_time = datetime.now()
     print('net initialized at {}'.format(start_time))
     print(f'initial validation_error = {test_net.validate_net()[0]:0.3f}')
@@ -60,7 +65,9 @@ def run_nn_cup():
                             verbose=False, hyperparams_for_plot=hyperparams_descr)
     end_time = datetime.now()
     print('training completed at {} ({} elapsed)'.format(end_time, end_time - start_time))
-    print(f'final validation_error = {test_net.validate_net()[0]:0.3f}')
+    print(f'final validation_error = {test_net.validate_net(error_func=error_fn)[0]:0.3f}')
+    error_fn2 = 'MEE'
+    print(f'final vl MEE error = {test_net.validate_net(error_func=error_fn2)[0]:0.3f}')
 
 
 def run_nn_only_classification():
@@ -121,92 +128,88 @@ def run_nn_only_classification():
     # todo: plot actual vs predicted (as accuracy and as MSE smoothing function)
 
 
-def run_nn_and_tf():
-    # trains basic neural network on the airfoil dataset
-    print('Getting dataset from file.. {}'.format(datetime.now()))
-    root_dir = os.getcwd()
-    file_abs_path = os.path.join(root_dir, '..\\datasplitting\\assets\\airfoil\\airfoil_self_noise.dat.csv')
-    dev_data = np.loadtxt(file_abs_path)
-    print('numpy dataset loaded from file. {}'.format(datetime.now()))
-    rng = default_rng()
-    rng.shuffle(dev_data)
+def command_line_training():
 
-    example_number = dev_data.shape[0]
-    train_ratio = 0.7
-    split_id = int(np.round(example_number * train_ratio))
-    training_data = dev_data[:split_id]
-    validation_data = dev_data[split_id:]
-
-    custom_nn_shape = [5, 8, 1]
-    num_hid_layers_tf = 1
-    input_dim_tf = 5
-    units_per_layer_tf = 8
-    out_cols_count = 1
-
-    activation_fun = 'tanh'
-    lr_eta = 0.01
-    alpha_momentum = 0.12
-    lambda_regularization = 0.005
-    task_type = 'regression'
-    mini_batch_size = 20
-    max_epochs = 300
-    early_stopping_threshold = 300
-
-    import tensorflow as tf
-    tf_regularizer = tf.keras.regularizers.L2(lambda_regularization)
-    tf_features_normalizer = None
-    tf_adaptive_lr = tf.optimizers.SGD(learning_rate=lr_eta, nesterov=False, momentum=alpha_momentum)
-    tf_error_fn = tf.keras.losses.MeanSquaredError()
-
-    test_net = NeuralNet(activation_fun, custom_nn_shape, eta=lr_eta, alpha=alpha_momentum, lamda=lambda_regularization,
-                         task=task_type, mb=mini_batch_size, max_epochs=max_epochs, threshold=early_stopping_threshold)
-
-    test_net.load_training(training_data, out_cols_count)
-    test_net.load_validation(validation_data, out_cols_count)
-
-    # todo: do normalization also on data for tf
-    normalized_tr_set = test_net.training_set
-    normalized_vl_set = test_net.validation_set
-
-    normalized_tr_features, normalized_tr_labels = np.array_split(normalized_tr_set, [input_dim_tf], axis=1)
-    normalized_vl_features, normalized_vl_labels = np.array_split(normalized_vl_set, [input_dim_tf], axis=1)
-
-    from lib_models.tensorflow_nn import create_and_compile_model, fit_and_evaluate_model, plot_results
-    tf_model = create_and_compile_model(input_dim_tf, num_hid_layers_tf, units_per_layer_tf, out_cols_count,
-                                     activation_fun, tf_regularizer, tf_features_normalizer,
-                                     normalized_tr_features, normalized_tr_labels, tf_adaptive_lr, tf_error_fn)
-    '''early_stopping_callback = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=20,
-                                                               restore_best_weights=True,
-                                                               mode='min', verbose=1, min_delta=0)
-    '''
-    start_time = datetime.now()
-    print('custom nn initialized at {}'.format(start_time))
-    print(f'initial validation_error = {test_net.validate_net()[0]:0.3f}')
-    test_net.batch_training(stopping='epochs', threshold=300, max_epochs=500)
-    end_time = datetime.now()
-    print('custm nn training completed at {} ({} elapsed)'.format(end_time, end_time - start_time))
-    print(f'final validation_error = {test_net.validate_net()[0]:0.3f}')
-
-    start_time = datetime.now()
-    print('tf nn initialized at {}'.format(start_time))
-    history, metrics_results = fit_and_evaluate_model(tf_model, normalized_tr_features, normalized_tr_labels,
-                                                      mini_batch_size, epochs_count=max_epochs,
-                                                      val_features=normalized_vl_features, val_labels=normalized_vl_labels,
-                                                      early_stopping_callback=None, max_epochs=max_epochs)
-    end_time = datetime.now()
-    print('tf nn training completed at {} ({} elapsed)'.format(end_time, end_time - start_time))
-
-    NormalizationClass = None
-    plot_results(tf_model, metrics_results, history, file_abs_path, activation_fun, mini_batch_size,
-                 tf_adaptive_lr, tf_error_fn, lambda_regularization, NormalizationClass,
-                 normalized_tr_features, normalized_tr_labels,
-                 normalized_vl_features, normalized_vl_labels)
-    # todo: also plot actual vs predicted for the custom nn model
-
-
-if __name__ == '__main__':
+    from grid_search import CUP_CUSTOM_NET_CFG
+    from hp_names import CFG
     # todo: collect training history to plot learning curve
     # run_nn_and_tf()
     # run_nn_only_regression()
     # run_nn_only_classification()
-    run_nn_cup()
+
+    if len(sys.argv) <= 1:
+        run_nn_cup()
+    elif len(sys.argv) == 2 and sys.argv[1].isdigit():
+        cv_fold = sys.argv[1]
+        cv_fold = int(cv_fold)
+        # todo: check is cv_fold btw num folds
+        if cv_fold > CUP_CUSTOM_NET_CFG[CFG.CV_NUM_SPLITS]:
+            print(f'Error: the cv_fold specified ({cv_fold}) is greather then the number of folds {CUP_CUSTOM_NET_CFG[CFG.CV_NUM_SPLITS]}')
+            sys.exit()
+
+        print(f'Command line arg: doing fold n. {cv_fold}')
+        run_nn_cup(which_cv_fold=cv_fold)
+    else:
+        print(f'Unregognized command line args: {sys.argv}')
+
+
+def command_line_load_and_assess_net():
+    # todo:
+    # load net from file, with final weight values
+    # this is just for testing, need to retrain net with these params, but normalization and denormalization in MEE
+    best_weights_path = '..\\report_grid_searches\\gs1\\20220122-020738-gs-tanh-fold-1-CUP_custom_nn\\20220122-120812-trial-62.2\latest'
+    dev_dataset_path = '..\\datasplitting\\assets\\ml-cup21-internal_splits\\dev_split.csv'
+    # internal_testset_path = '..\\datasplitting\\assets\\ml-cup21-internal_splits\\test_split.csv'
+    print(f'loading net final/best weights from {best_weights_path}')
+    #todo: check evaluation reproduce same results gotten after original training
+
+    error_fn = 'MSE'  # MSE, MEE
+    task = 'regression'
+    adaptive_lr = 'SGD constant lr'
+    out_dim = 2
+
+    net_shape = [10, 10, 10, out_dim]
+    activation = 'tanh'  # 'sigmoid' # 'tanh'
+    mini_batch_size = 50  # 80 # 32
+    lr = 0.1  # 0.01  # 1e-2 # 1e-4
+    alpha_momentum = 0.04  # 5e-2
+    lambda_reg = 0.0005  # 0.0005  # 0.001  # 0.005 # 5e-7
+
+    stopping_threshold = 0.001  #0.00001  # 0.01
+    max_epochs = 2000
+    patience = 50  # 75
+    early_stopping = 'MSE2_val'  # 'EuclNormGrad'  # 'MSE2_val'
+
+    cv_num_plits = 3
+    which_cv_fold = 1
+
+    net = NeuralNet.load_net(best_weights_path, activation, eta=lr, alpha=alpha_momentum, lamda=lambda_reg,
+                             mb=mini_batch_size, task=task, error=error_fn)  # , **kwargs
+
+    # load dataset on which to perform the assessment/evaluation, without normalization
+    training_split, validation_split = get_cup_dev_set_fold_splits(dev_dataset_path,
+                                                                   cv_num_plits=cv_num_plits,
+                                                                   which_fold=which_cv_fold)
+    net.load_training(training_split, out_dim)
+    error_MEE_tr = net.evaluate_original_error(set=training_split, error_fn='MEE')
+    error_MEE_vl = net.evaluate_original_error(set=validation_split, error_fn='MEE')
+    error_MSE_tr = net.evaluate_original_error(set=training_split, error_fn='MSE')
+    error_MSE_vl = net.evaluate_original_error(set=validation_split, error_fn='MSE')
+
+    # todo print eval time
+    print(f'final MEE errors: TR: {error_MEE_tr}, VL: {error_MEE_vl}, '  # , TS: {}
+          f'final MSE erorors: TR: {error_MSE_tr}, VL: {error_MSE_vl}, ')
+
+
+if __name__ == '__main__':
+    import sys
+
+    train_and_evaluate = False
+
+    if train_and_evaluate:
+        command_line_training()
+    else:
+        command_line_load_and_assess_net()
+
+
+
