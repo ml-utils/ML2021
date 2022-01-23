@@ -383,7 +383,7 @@ class NeuralNet:
 
     # evaluate: evaluates non-normalized (original format) inputs and returns non-normalized outputs
     def evaluate(self, entry):
-        print('using evaluate functions with normalization and denormalization')
+        # print('using evaluate functions with normalization and denormalization')
         entry = (entry - self.shift_vector[:self.fan_in])/self.scale_vector[:self.fan_in]
 
         output = self.internal_evaluate(entry)
@@ -673,14 +673,13 @@ class NeuralNet:
         if error_fn is None:
             error_fn = self.error_func
 
-        if set == 'validation':
-            data_set = self.validation_set
+        data_set = set
+        if isinstance(set, str):
+            if set == 'validation':
+                data_set = self.validation_set
 
-        elif set == 'training':
-            data_set = self.training_set
-
-        else:
-            data_set = set
+            elif set == 'training':
+                data_set = self.training_set
 
         error = 0
         set_size = data_set.shape[0]
@@ -690,7 +689,7 @@ class NeuralNet:
             x = entry[:self.fan_in]
             y = entry[-self.fan_out:]
 
-            if (set == 'validation') or (set == 'training'):
+            if isinstance(set, str) and ((set == 'validation') or (set == 'training')):
 
                 predicted_y = self.internal_evaluate(x)
                 distance = self.scale_vector[-self.fan_out:]*(y - predicted_y)
