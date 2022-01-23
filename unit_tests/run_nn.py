@@ -1,16 +1,12 @@
 # Standard library imports
 import os
-from time import sleep
 from datetime import datetime
-import matplotlib.pyplot as plt
-from shutil import rmtree, copytree
 
 # Third party imports
 import numpy as np
 from numpy.random import default_rng
 
 # Local application imports
-
 from lib_models.utils import get_hyperparams_descr
 from nn import NeuralNet
 from preprocessing import load_and_preprocess_monk_dataset, get_cup_dev_set_fold_splits
@@ -43,7 +39,7 @@ def run_nn_cup(which_cv_fold=1):
 
     stopping_threshold = 0.001  #0.00001  # 0.01
     max_epochs = 2000
-    patience = 50  # 75
+    patience = 75  # 75
     early_stopping = 'MSE2_val'  # 'EuclNormGrad'  # 'MSE2_val'
 
     test_net = NeuralNet(activation, net_shape, eta=lr, alpha=alpha_momentum, lamda=lambda_reg, mb=mini_batch_size,

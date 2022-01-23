@@ -11,7 +11,7 @@ import numpy as np
 from tensorboard.plugins.hparams import api as hp
 
 # Local application imports
-from datasets_cfgs import CUP_CUSTOM_NET_CFG
+from datasets_cfgs import *
 from hp_names import HP, CFG, RES
 from lib_models.grid_search_tf import train_test_model_tf
 from nn import NeuralNet
@@ -61,6 +61,10 @@ MONK_CUSTOM_NET_HP_RANGES = {
 # HIST_VAL_MSE = 'val_mse'
 # 'accuracy'
 
+CUP_CUSTOM_NET_CFG[CFG.HP_RANGES] = CUP_CUSTOM_NET_HP_RANGES
+MONK1_CUSTOM_NET_CFG[CFG.HP_RANGES] = MONK_CUSTOM_NET_HP_RANGES
+MONK2_CUSTOM_NET_CFG[CFG.HP_RANGES] = MONK_CUSTOM_NET_HP_RANGES
+MONK3_CUSTOM_NET_CFG[CFG.HP_RANGES] = MONK_CUSTOM_NET_HP_RANGES
 
 # todo: pass dataset filename and trial name in the grid search to the batchtraining method to save
 # the error plot img file with a more descriptive name
