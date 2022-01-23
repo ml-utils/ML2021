@@ -663,6 +663,10 @@ class NeuralNet:
         error_smooth /= self.validation_set.shape[0]
         return error_smooth, accu, misclassification_rate
 
+
+    # evaluates MEE or MSE on chosen dataset using original scale rather than normalized values;
+    # set (string or np.ndarray): dataset to evaluate mean error on, must be either string for validation or
+    # training sets or numpy array containing NOT-NORMALIZED entries
     def evaluate_original_error(self, set='validation', error_fn=None):
 
         if error_fn is None:
