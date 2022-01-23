@@ -1,0 +1,1 @@
+Model used is a Multilayer Fully Connected Neural Network, with 2 hidden layers with 10 units each, team-name_abstract.txt tanh as the activation function, L2 regularization, constant learning rate with minibatch  (SGD), error functions MSE e MEE. For the model selection, we searched for the best hyperparameters through a grid search with 3-fold cross validation.
