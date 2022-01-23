@@ -19,16 +19,16 @@ from preprocessing import load_and_preprocess_monk_dataset, get_cup_dev_set_fold
 
 
 CUP_CUSTOM_NET_HP_RANGES = {
-    HP.UNITS_PER_LAYER: hp.HParam(HP.UNITS_PER_LAYER, hp.Discrete([5, 10])),
-    HP.N_HID_LAYERS: hp.HParam(HP.N_HID_LAYERS, hp.Discrete([1, 2])),
+    HP.UNITS_PER_LAYER: hp.HParam(HP.UNITS_PER_LAYER, hp.Discrete([10, 20])),
+    HP.N_HID_LAYERS: hp.HParam(HP.N_HID_LAYERS, hp.Discrete([2])),
     HP.OPTIMIZER: hp.HParam(HP.OPTIMIZER, hp.Discrete(['SGD constant lr'])),
-    HP.LR: hp.HParam(HP.LR, hp.Discrete([0.001, 0.01])),
-    HP.MOMENTUM: hp.HParam(HP.MOMENTUM, hp.Discrete([0.004, 0.04])),
-    HP.LAMBDA_L2: hp.HParam(HP.LAMBDA_L2, hp.RealInterval(min_value=0.0005, max_value=0.005)),
-    HP.MB: hp.HParam(HP.MB, hp.Discrete([8, 32])),
-    HP.ACTIV_FUN: hp.HParam(HP.ACTIV_FUN, hp.Discrete(['sigmoid'])),
+    HP.LR: hp.HParam(HP.LR, hp.Discrete([0.01])),
+    HP.MOMENTUM: hp.HParam(HP.MOMENTUM, hp.Discrete([0.16])),
+    HP.LAMBDA_L2: hp.HParam(HP.LAMBDA_L2, hp.RealInterval(min_value=0.0001, max_value=0.0005)),
+    HP.MB: hp.HParam(HP.MB, hp.Discrete([100])),
+    HP.ACTIV_FUN: hp.HParam(HP.ACTIV_FUN, hp.Discrete(['tanh'])),
     HP.STOPPING_THRESH: hp.HParam(HP.STOPPING_THRESH, hp.Discrete([0.001])),
-    HP.PATIENCE: hp.HParam(HP.PATIENCE, hp.Discrete([100])),
+    HP.PATIENCE: hp.HParam(HP.PATIENCE, hp.Discrete([75])),
     HP.MAX_EPOCHS: hp.HParam(HP.MAX_EPOCHS, hp.Discrete([2000])),
     HP.ERROR_FN: hp.HParam(HP.ERROR_FN, hp.Discrete(['MSE'])),  # MSE
     HP.EARLY_STOP_ALG: hp.HParam(HP.EARLY_STOP_ALG, hp.Discrete(['MSE2_val'])),
@@ -362,7 +362,7 @@ def trial_info_csv_writer_helper(file_abs_path, trial_dir, trial_info):
         print(f"I/O error: {e}")
 
 
-def train_test_custom_nn(hparams, cfg, trial_name='', grid_search_name='', cv_num_plits=5, cv_fold=1):
+def train_test_custom_nn(hparams, cfg, trial_name='', grid_search_name='', cv_num_plits=3, cv_fold=1):
     root_dir = os.getcwd()
     filename = cfg[CFG.DATASET_FILENAME]
     file_path = os.path.join(root_dir, cfg[CFG.DATASET_DIR], filename)
