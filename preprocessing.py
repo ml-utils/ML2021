@@ -9,7 +9,8 @@ CUP_CFG = {'shortname': 'MLCUP2021', 'filename': 'ML-CUP21-TR.csv', 'sep': ',',
                                        'datatypes': MLCUP2021datatypes}
 CUP_DATASETS_DIR = '.\\datasplitting\\assets\\ml-cup21-internal_splits\\'
 
-
+MLCUP21_BLINDSET_inp_datatypes = ['%i'] + (['%f'] * 10)  # first col is integer, the others are floats
+MLCUP21_BLINDSET_out_datatypes = ['%i'] + (['%f'] * 2)  # first col is integer, the others are floats
 
 
 def get_cupdata_split_fixed_size(filepath, training_size=1200, vl_size=277):
@@ -112,6 +113,10 @@ def one_hot_encode_multiple_cols(arr, col_indexes_to_encode=None, cols_to_not_ch
     return encoded_ds
 
 
+def get_cup_blind_set(filepath, has_id_col_to_remove=False):
+    return get_cup_dataset_from_file(filepath, has_id_col_to_remove=False)
+
+
 def get_cup_dataset_from_file(filepath, has_id_col_to_remove=True):
     dataset = np.loadtxt(filepath, delimiter=CUP_CFG['sep'])  # , converters=converters, fmt=config['datatypes']
     if has_id_col_to_remove:
@@ -148,11 +153,13 @@ def save_shuffled_dataset(filename_suffix):
     np.savetxt(out_file_path, dataset, fmt=MLCUP2021datatypes, delimiter=CUP_CFG['sep'])
 
 
-def split_cup_dataset(dev_split_idx=1200, pt1_name='dev_split', pt2_name='test_split'):
-    dataset = get_cup_dataset_from_file(filename='ML-CUP21-TR.csv', workdir_path=CUP_DATASETS_DIR)
+def split_cup_dataset(dev_split_idx=1200, pt1_name='dev_split', pt2_name='test_split', filename='ML-CUP21-TR.csv',
+                      shuffle=True):
+    dataset = get_cup_dataset_from_file(filename=filename, workdir_path=CUP_DATASETS_DIR)
     # check num columns, num patterns
 
-    shuffle_dataset(dataset)
+    if shuffle:
+        shuffle_dataset(dataset)
 
     # test_set_ratio = 0.2
     # nb per il training set cercare num pattern che sia multiplo .. di minibatch tipici

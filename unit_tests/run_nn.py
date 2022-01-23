@@ -10,7 +10,7 @@ from numpy.random import default_rng
 from lib_models.utils import get_hyperparams_descr
 from nn import NeuralNet
 from preprocessing import load_and_preprocess_monk_dataset, get_cup_dev_set_fold_splits, get_cup_dataset_from_file, \
-    get_cupdata_split_fixed_size
+    get_cupdata_split_fixed_size, get_cup_blind_set, split_cup_dataset, CUP_CFG, MLCUP21_BLINDSET_out_datatypes
 
 
 def run_nn_cup(which_cv_fold=1):
@@ -207,6 +207,11 @@ def command_line_load_and_assess_net(verbose=False):
               f'MEE: {norml_error_MEE_vl}, MSE: {norml_error_MSE_vl}')
 
 
+def generate_cup_retraining_splits():
+    split_cup_dataset(dev_split_idx=1200, pt1_name='-tr', pt2_name='-vl',
+                      filename='ML-CUP21-shuffled-retraining.csv', shuffle=False)
+
+
 def command_line_retraining():
     # load a net, with its INITIAL weights,
     print('retraining..')
@@ -235,6 +240,7 @@ def command_line_retraining():
     # a new tr vl split of the data
     training_size = 1200
     vl_size = 277  # 1200 for TR out of total 1477
+
     training_split, validation_split = get_cupdata_split_fixed_size(dataset_path, training_size=training_size,
                                                                     vl_size=vl_size)
 
@@ -259,10 +265,81 @@ def command_line_retraining():
     print(f'final vl MEE error = {net.validate_net(error_func=error_fn2)[0]:0.3f}')
 
 
+def cmd_evaluate_cup_blindset():
+    # todo: load blindset, ids included
+    # load the final model (the retrained one) with its final weights
+    # call net.evaluate(self, entry), passing one entry at a time, but without id
+    # collect results, keeping their ids, and save to file
+    print(f'Generating blind test predictions..')
+    retrained_weights_path = '..\\report_grid_searches\\retrained_model\\20220123-181909\\latest'
+    bind_dataset_path = '..\\datasplitting\\assets\\ml-cup21-internal_splits\\ML-CUP21-TS-blindset.csv'
+    print(f'loading net retrained_weights from {retrained_weights_path}')
+    print(f'bind_dataset_path file: {bind_dataset_path}')
+
+
+    error_fn = 'MSE'  # MSE, MEE
+    task = 'regression'
+    out_dim = 2
+
+    activation = 'tanh'  # 'sigmoid' # 'tanh'
+    mini_batch_size = 50  # 80 # 32
+    lr = 0.1  # 0.01  # 1e-2 # 1e-4
+    alpha_momentum = 0.04  # 5e-2
+    lambda_reg = 0.0005  # 0.0005  # 0.001  # 0.005 # 5e-7
+
+    cv_num_plits = 3
+    which_cv_fold = 1
+
+    net = NeuralNet.load_net(retrained_weights_path, activation, eta=lr, alpha=alpha_momentum, lamda=lambda_reg,
+                             mb=mini_batch_size, task=task, error=error_fn)  # , **kwargs
+
+    # this is used only to regenerate the scale and shift vectors used in normalization
+    workdir = '..\\datasplitting\\assets\\ml-cup21-internal_splits\\'
+    retraining_dataset_path = workdir + 'ML-CUP21-shuffled-retraining.csv'
+    training_size = 1200
+    vl_size = 277  # 1200 for TR out of total 1477
+    training_split, _ = get_cupdata_split_fixed_size(retraining_dataset_path, training_size=training_size,
+                                                                    vl_size=vl_size)
+    net.load_training(training_split, out_dim)
+
+    blind_set = get_cup_blind_set(bind_dataset_path)
+    # todo, check that the dimension is 1 hid col and 10 features columns
+    print(f'Blind set size: {blind_set.shape}')
+
+    # to remove an entry id..
+    #         ids = dataset[:, 0]
+    #         no_ids = dataset[:, config['x_begin_col_idx']:(config['y_end_col_idx'] + 1)]
+
+    predicted_dataset = np.asarray([0, 0, 0])  # np.empty((0, out_dim+1))
+    for entry in blind_set:
+        entry_id = entry[:1]
+        entry_features = entry[-10:]
+        predicted = net.evaluate(entry_features)
+        id_with_predicted = np.hstack((entry_id, predicted))
+
+        # print(f'entry_id: {entry_id},\n entry_features: {entry_features},\n predicted: {predicted},\n '
+        #       f'id_with_predicted: {id_with_predicted}, id_with_predicted.shape: {id_with_predicted.shape}')
+        # predicted_dataset = np.append(predicted_dataset, id_with_predicted, axis=0)
+        predicted_dataset = np.vstack((predicted_dataset, id_with_predicted))
+
+    # remove first dummpy element:
+    predicted_dataset = predicted_dataset[1:]
+    print(f'predicted_dataset: {predicted_dataset}')
+    print(f'predicted_dataset.shape: {predicted_dataset.shape}')
+
+    # todo: save to csv file with appropriate format for project
+    team_name = 'NoCovidNoParty'
+    out_file_name = team_name + '_ML-CUP21-TS.csv'
+    out_file_path = workdir + out_file_name
+    print(f'saving predicted csv file to {out_file_path}')
+    np.savetxt(out_file_path, predicted_dataset, fmt=MLCUP21_BLINDSET_out_datatypes, delimiter=CUP_CFG['sep'])
+
+
 if __name__ == '__main__':
     import sys
 
-    command_line_retraining()
+    cmd_evaluate_cup_blindset()
+    #   command_line_retraining()
     #   command_line_training()
     #   command_line_load_and_assess_net()
 
