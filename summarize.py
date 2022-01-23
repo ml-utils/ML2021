@@ -4,7 +4,7 @@ import os
 import numpy as np
 
 current_dir = os.getcwd()
-folder_name = '20220122-020738-gs-fold-1-CUP_custom_nn'
+folder_name = '20220122-123947-gs-fold-3-CUP_custom_nn'
 
 general_header = ['trial', 'epochs_done', 'crashed', 'mse_vl_last', 'mse_tr_last', 'mee_vl_last',
                   'UNITS_PER_LAYER', 'N_HID_LAYERS', 'LR', 'MOMENTUM', 'LAMBDA_L2', 'OPTIMIZER', 'MB', 'ACTIV_FUN',
@@ -78,7 +78,7 @@ for j, trials in enumerate(list(trial_split(all_folders))):
         repetition_entry = [trial_name, epochs_done[i], 'false', mse_vl[i], mse_tr[i], mee_vl[i], units_per_layer,
                             hidden_layers, hyperparameters['eta'], hyperparameters['alpha'], hyperparameters['lambda'],
                             'SGD constant lr', hyperparameters['mb'], hyperparameters['hidden activation'],
-                            '0.001', '150', '2000', 'MSE', 'MSE2_val']
+                            '0.001', '100', '2000', 'MSE', 'MSE2_val']
 
         repetition_writer.writerow(repetition_entry)
 
@@ -93,7 +93,7 @@ for j, trials in enumerate(list(trial_split(all_folders))):
                         np.median(mee_vl), np.std(mee_vl), np.median(epochs_done), np.std(epochs_done), 5,
                         0, units_per_layer, hidden_layers, hyperparameters['eta'], hyperparameters['alpha'],
                         hyperparameters['lambda'], 'SGD constant lr', hyperparameters['mb'],
-                        hyperparameters['hidden activation'], '0.001', '150', '2000', 'MSE', 'MSE2_val']
+                        hyperparameters['hidden activation'], '0.001', '100', '2000', 'MSE', 'MSE2_val']
 
     aggregated_writer.writerow(aggregated_entry)
 

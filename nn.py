@@ -276,9 +276,14 @@ class NeuralNet:
     # loads trained net based on latest state + info gathered from net_summary.json
     # path (string): filepath to training run (folder containing net_summary.json, 'latest' and all 'epoch_x')
     @classmethod
-    def load_latest(cls, path):
+    def load_trained(cls, path, state='latest'):
 
-        state_path = os.path.join(path, 'latest')
+        if state == 'latest':
+            state_path = os.path.join(path, 'latest')
+
+        else:
+            state_path = os.path.join(path, 'epoch_0')
+
         summary_path = os.path.join(path, 'net_summary.json')
 
         with open(summary_path, 'r') as infile:
@@ -657,6 +662,57 @@ class NeuralNet:
                 # print(f'val predicted: {validation_predicted_outs}')
         error_smooth /= self.validation_set.shape[0]
         return error_smooth, accu, misclassification_rate
+
+    def evaluate_original_error(self, set='validation', error_fn=None):
+
+        if error_fn is None:
+            error_fn = self.error_func
+
+        if set == 'validation':
+            data_set = self.validation_set
+
+        elif set == 'training':
+            data_set = self.training_set
+
+        else:
+            data_set = set
+
+        error = 0
+        set_size = data_set.shape[0]
+
+        for entry in data_set:
+
+            x = entry[:self.fan_in]
+            y = entry[-self.fan_out:]
+
+            if (set == 'validation') or (set == 'training'):
+
+                predicted_y = self.internal_evaluate(x)
+                distance = self.scale_vector[-self.fan_out:]*(y - predicted_y)
+
+            else:
+
+                predicted_y = self.evaluate(x)
+                distance = y - predicted_y
+
+            if type(distance) is np.ndarray:
+                SE = (distance**2).sum()
+
+            else:
+                SE = distance**2
+
+            if error_fn == 'MSE':
+                error += SE
+
+            elif error_fn == 'MEE'
+                error += np.sqrt(SE)
+
+        error /= set_size
+
+        return error
+
+
+
 
 
 if __name__ == '__main__':
