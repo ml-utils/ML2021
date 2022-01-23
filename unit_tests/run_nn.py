@@ -152,28 +152,20 @@ def command_line_load_and_assess_net():
     # todo:
     # load net from file, with final weight values
     # this is just for testing, need to retrain net with these params, but normalization and denormalization in MEE
-    best_weights_path = '..\\report_grid_searches\\gs1\\20220122-020738-gs-tanh-fold-1-CUP_custom_nn\\20220122-120812-trial-62.2\latest'
+    best_weights_path = '..\\report_grid_searches\\chosen_model\\20220123-153347\\latest'
     dev_dataset_path = '..\\datasplitting\\assets\\ml-cup21-internal_splits\\dev_split.csv'
     # internal_testset_path = '..\\datasplitting\\assets\\ml-cup21-internal_splits\\test_split.csv'
     print(f'loading net final/best weights from {best_weights_path}')
-    #todo: check evaluation reproduce same results gotten after original training
 
     error_fn = 'MSE'  # MSE, MEE
     task = 'regression'
-    adaptive_lr = 'SGD constant lr'
     out_dim = 2
 
-    net_shape = [10, 10, 10, out_dim]
     activation = 'tanh'  # 'sigmoid' # 'tanh'
     mini_batch_size = 50  # 80 # 32
     lr = 0.1  # 0.01  # 1e-2 # 1e-4
     alpha_momentum = 0.04  # 5e-2
     lambda_reg = 0.0005  # 0.0005  # 0.001  # 0.005 # 5e-7
-
-    stopping_threshold = 0.001  #0.00001  # 0.01
-    max_epochs = 2000
-    patience = 50  # 75
-    early_stopping = 'MSE2_val'  # 'EuclNormGrad'  # 'MSE2_val'
 
     cv_num_plits = 3
     which_cv_fold = 1
@@ -192,14 +184,20 @@ def command_line_load_and_assess_net():
     error_MSE_vl = net.evaluate_original_error(set=validation_split, error_fn='MSE')
 
     # todo print eval time
-    print(f'final MEE errors: TR: {error_MEE_tr}, VL: {error_MEE_vl}, '  # , TS: {}
-          f'final MSE erorors: TR: {error_MSE_tr}, VL: {error_MSE_vl}, ')
+    print(f'final MEE errors (no normalization): TR: {error_MEE_tr}, VL: {error_MEE_vl}, '  # , TS: {}
+          f'final MSE erorors (no normalization): TR: {error_MSE_tr}, VL: {error_MSE_vl}, ')
+
+    net.load_validation(validation_split, out_dim)
+    norml_error_MEE_vl, _, _ = net.validate_net(error_func='MEE')
+    norml_error_MSE_vl, _, _ = net.validate_net(error_func='MSE')
+    print(f'for comparison/double check, the vl errors with normalization are: '
+          f'MEE: {norml_error_MEE_vl}, MSE: {norml_error_MSE_vl}')
 
 
 if __name__ == '__main__':
     import sys
 
-    train_and_evaluate = True
+    train_and_evaluate = False
 
     if train_and_evaluate:
         command_line_training()
