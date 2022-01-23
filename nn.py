@@ -533,6 +533,7 @@ class NeuralNet:
             # check for stopping conditions
             if self.should_stop_training(stopping, threshold, max_epochs, epoch, best_epoch_for_stopping, patience,
                                          validate_errors, train_errors, avg_euclidean_norm_grad_last_layer):
+                self.savestate(best_epoch_for_stopping)
                 break
             done_epochs = epoch
 
@@ -718,26 +719,36 @@ class NeuralNet:
 
 if __name__ == '__main__':
     # trains basic neural network on the airfoil dataset
+    from preprocessing import get_cup_dev_set_fold_splits
     root_dir = os.getcwd()
-    data_dir = os.path.join(root_dir, 'datasplitting\\assets\\airfoil\\airfoil_self_noise.dat.csv')
-    data = np.loadtxt(data_dir)
-    train_ratio = 0.7
-    rng = default_rng()
-    rng.shuffle(data)
-    example_number = data.shape[0]
+    cv_num_plits = 3
+    which_cv_fold = 1
+    dataset_filepath = os.path.join(root_dir, 'datasplitting\\assets\\ml-cup21-internal_splits\\dev_split.csv')
+    training_split, validation_split = get_cup_dev_set_fold_splits(dataset_filepath,
+                                                                   cv_num_plits=cv_num_plits,
+                                                                   which_fold=which_cv_fold)
+    example_number = training_split.shape[0]
+    # rng = default_rng()
+    # rng.shuffle(data)
 
-    net_shape = [5, 8, 1]
-    split_id = int(np.round(example_number*train_ratio))
+    out_dim = 2
+    net_shape = [10, 10, 10, out_dim]
+    mini_batch_size = 50
+    stopping_threshold = 0.001
+    max_epochs = 500
+    patience = 50  # 75
+    early_stopping = 'MSE2_val'
 
-    test_net = NeuralNet('tanh', net_shape, eta=0.01, alpha=0.12, lamda=0.005, task='regression')
+    test_net = NeuralNet('tanh', net_shape, eta=0.01, alpha=0.04, lamda=0.0005, mb=mini_batch_size, task='regression')
 
-    test_net.load_training(data[:split_id], 1)
-    test_net.load_validation(data[split_id:], 1)
+    test_net.load_training(training_split, out=out_dim)
+    test_net.load_validation(validation_split, out=out_dim)
 
     start_time = datetime.now()
     print('net initialized at {}'.format(start_time))
     print(f'initial validation_error = {test_net.validate_net()[0]:.3f}')
-    test_net.batch_training()
+    test_net.batch_training(    threshold = stopping_threshold, max_epochs = max_epochs, stopping=early_stopping,
+                                patience = patience, verbose=False)
     end_time = datetime.now()
     print('training completed at {} ({} elapsed)'.format(end_time, end_time - start_time))
     print(f'final validation_error = {test_net.validate_net()[0]}')
