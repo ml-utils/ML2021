@@ -708,7 +708,7 @@ class NeuralNet:
             if error_fn == 'MSE':
                 error += SE
 
-            elif error_fn == 'MEE'
+            elif error_fn == 'MEE':
                 error += np.sqrt(SE)
 
         error /= set_size
