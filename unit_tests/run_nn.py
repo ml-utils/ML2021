@@ -9,7 +9,8 @@ from numpy.random import default_rng
 # Local application imports
 from lib_models.utils import get_hyperparams_descr
 from nn import NeuralNet
-from preprocessing import load_and_preprocess_monk_dataset, get_cup_dev_set_fold_splits, get_cup_dataset_from_file
+from preprocessing import load_and_preprocess_monk_dataset, get_cup_dev_set_fold_splits, get_cup_dataset_from_file, \
+    get_cupdata_split_fixed_size
 
 
 def run_nn_cup(which_cv_fold=1):
@@ -206,15 +207,64 @@ def command_line_load_and_assess_net(verbose=False):
               f'MEE: {norml_error_MEE_vl}, MSE: {norml_error_MSE_vl}')
 
 
+def command_line_retraining():
+    # load a net, with its INITIAL weights,
+    print('retraining..')
+    initial_weights_path = '..\\report_grid_searches\\chosen_model\\20220123-153347\\epoch_0'
+    dataset_path = '..\\datasplitting\\assets\\ml-cup21-internal_splits\\ML-CUP21-shuffled-retraining.csv'
+    print(f'loading net initial weights from {initial_weights_path}')
+    print(f'dataset_path: {dataset_path}')
+
+    error_fn = 'MSE'  # MSE, MEE
+    task = 'regression'
+    out_dim = 2
+    net_shape = [10, 10, 10, out_dim]
+    activation = 'tanh'  # 'sigmoid' # 'tanh'
+    mini_batch_size = 50  # 80 # 32
+    lr = 0.1  # 0.01  # 1e-2 # 1e-4
+    alpha_momentum = 0.04  # 5e-2
+    lambda_reg = 0.0005  # 0.0005  # 0.001  # 0.005 # 5e-7
+    adaptive_lr = 'SGD constant lr'
+    stopping_threshold = 0.001  #0.00001  # 0.01
+    max_epochs = 2000
+    early_stopping = 'MSE2_val'
+    patience = 75
+    net = NeuralNet.load_net(initial_weights_path, activation, eta=lr, alpha=alpha_momentum, lamda=lambda_reg,
+                             mb=mini_batch_size, task=task, error=error_fn)  # , **kwargs
+
+    # a new tr vl split of the data
+    training_size = 1200
+    vl_size = 277  # 1200 for TR out of total 1477
+    training_split, validation_split = get_cupdata_split_fixed_size(dataset_path, training_size=training_size,
+                                                                    vl_size=vl_size)
+
+    # load new tr and vl sets, and start training again
+    net.load_training(training_split, out_dim)
+    net.load_validation(validation_split, out=out_dim)
+
+    hyperparams_descr = get_hyperparams_descr('CUP_2021dev', str(net_shape), activation, mini_batch_size,
+                                              error_fn=error_fn, l2_lambda=lambda_reg, momentum=alpha_momentum,
+                                              learning_rate=lr, optimizer=adaptive_lr)
+    print(f'{hyperparams_descr}')
+    start_time = datetime.now()
+    print('net initialized at {}'.format(start_time))
+    print(f'initial validation_error = {net.validate_net()[0]:0.3f}')
+    net.batch_training(threshold=stopping_threshold, max_epochs=max_epochs, stopping=early_stopping,
+                            patience=patience,
+                            verbose=False, hyperparams_for_plot=hyperparams_descr)
+    end_time = datetime.now()
+    print('training completed at {} ({} elapsed)'.format(end_time, end_time - start_time))
+    print(f'final validation_error = {net.validate_net(error_func=error_fn)[0]:0.3f}')
+    error_fn2 = 'MEE'
+    print(f'final vl MEE error = {net.validate_net(error_func=error_fn2)[0]:0.3f}')
+
+
 if __name__ == '__main__':
     import sys
 
-    train_and_evaluate = False
-
-    if train_and_evaluate:
-        command_line_training()
-    else:
-        command_line_load_and_assess_net()
+    command_line_retraining()
+    #   command_line_training()
+    #   command_line_load_and_assess_net()
 
 
 

@@ -117,7 +117,8 @@ def generate_plots_from_grid_search_output(grid_search_dir):
                 json.dump(resume_info, outfile)
 
 
-def generate_plot_from_single_trial_output_file(plot_data_file_full_path, save_to_dir, session_num, trial_num):
+def generate_plot_from_single_trial_output_file(plot_data_file_full_path, save_to_dir, session_num, trial_num,
+                                    ylim=None, xlim=None):
 
     with open(plot_data_file_full_path) as json_file:
         plot_data = json.load(json_file)
@@ -130,19 +131,35 @@ def generate_plot_from_single_trial_output_file(plot_data_file_full_path, save_t
     plot_learning_curve_to_img_file(trial_plot_data[VAL_ERRORS], trial_plot_data[TR_ERRORS],
                                     trial_plot_data[VL_MISCL_RATES], trial_plot_data[LAST_EPOCH],
                                     trial_plot_data[HYPERPARAMS_FOR_PLOT], plot_data[LEARNING_TASK],
-                                    trial_plot_data[ERROR_FUNC], save_to_dir, trial_name=trial_name)
+                                    trial_plot_data[ERROR_FUNC], save_to_dir, trial_name=trial_name,
+                                    ylim=ylim, xlim=xlim)
+
+
+def generate_all_plots_for_subdirs(main_dir):
+    return 0
+    # loop all dirs
+    # in each looks for a file ending with plotdata.json
+    # (parse the fold session trial info from dir name or file name)
+    # (also prefix with main dir timestamp)
+    # generate the plotfile, with suffix the fold session trial descr
+    # (the file is saved in the main dir, if names are unique)
 
 
 def plot_learning_curve_to_img_file(validate_errors, train_errors, vl_misclassification_rates, epoch,
-                                    hyperparams_for_plot, learning_task, error_func, net_dir, trial_name=''):
+                                    hyperparams_for_plot, learning_task, error_func, net_dir, trial_name='',
+                                    ylim=None, xlim=None):
     # todo, workaround: run this in a separathe thread/process to try fix the crash after 350 plots
 
     try:
         fig, ax = plt.subplots(1)
         # todo: explain: why specify [:epoch+1]
-        ax.plot(validate_errors[:epoch+1], label='validation errors')
-        ax.plot(train_errors[:epoch+1], label='training errors')
+        ax.plot(validate_errors[:epoch+1], '--', label='validation errors')
+        ax.plot(train_errors[:epoch+1], '-', label='training errors')
         ax.plot(vl_misclassification_rates[:epoch + 1], label='vl misclassification rates')
+        if ylim is not None:
+            plt.ylim(ylim)
+        if xlim is not None:
+            plt.xlim(xlim)
         plt.xlabel('epoch')
 
         y_axis_label = 'MSE / miscl rate' if learning_task == 'classification' else error_func
@@ -175,6 +192,8 @@ def plot_learning_curve_to_img_file(validate_errors, train_errors, vl_misclassif
 if __name__ == '__main__':
     import sys
 
+    # print(f'args: {sys.argv}')
+
     plot_data_file_dir = sys.argv[1]
     plot_data_filename = sys.argv[2]
     # optional
@@ -192,4 +211,7 @@ if __name__ == '__main__':
         print(f'File does not exist: {plot_data_file_dir} ')
         sys.exit()
 
-    generate_plot_from_single_trial_output_file(plot_data_file_full_path, save_to_dir, session_num, trial_num)
+    ylim = (0.08, 0.3)
+    xlim = None  # (0, 2000)
+    generate_plot_from_single_trial_output_file(plot_data_file_full_path, save_to_dir, session_num, trial_num,
+                                                ylim=ylim, xlim=xlim)

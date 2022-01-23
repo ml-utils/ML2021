@@ -1,22 +1,29 @@
 import os
 
 import numpy as np
-import pandas as pd
 
 MLCUP2021datatypes = ['%i'] + (['%f'] * 12)  # first col is integer, the others are floats
-CUP_CFG = {'shortname': 'MLCUP2021', 'filename': 'ML-CUP21-TR.csv',
+CUP_CFG = {'shortname': 'MLCUP2021', 'filename': 'ML-CUP21-TR.csv', 'sep': ',',
                                        'input_dim': 10, 'x_begin_col_idx': 1, 'x_end_col_idx': 10,
                                        'output_dim': 2, 'y_begin_col_idx': 11, 'y_end_col_idx': 12,
                                        'datatypes': MLCUP2021datatypes}
+CUP_DATASETS_DIR = '.\\datasplitting\\assets\\ml-cup21-internal_splits\\'
+
+
+
+
+def get_cupdata_split_fixed_size(filepath, training_size=1200, vl_size=277):
+    print(f'get_cupdata_split_fixed_size training_size: {training_size}, filepath: {filepath}')
+
+    dataset = get_cup_dataset_from_file(filepath)
+    training_split, validation_split = get_cv_fold_split(dataset, training_size, training_size+vl_size)
+    return training_split, validation_split
 
 
 def get_cup_dev_set_fold_splits(filepath, cv_num_plits=3, which_fold=1):
-    sep = ','
-    dataset = np.loadtxt(filepath, delimiter=sep)  # , converters=converters, fmt=config['datatypes']
-    dataset = remove_id_col(dataset, CUP_CFG)
-    print('data loaded, shape: ', dataset.shape)
-    print(f'dtype: {dataset.dtype}')
+    print(f'get_cup_dev_set_fold_splits cv_num_plits: {cv_num_plits}, which_fold: {which_fold}, filepath: {filepath}')
 
+    dataset = get_cup_dataset_from_file(filepath)
     # dev size = 1200
     dataset_size = dataset.shape[0]
 
@@ -29,6 +36,17 @@ def get_cv_fold_split(dataset, vl_begin_point, vl_end_point):
 
     validation_split = dataset[vl_begin_point:vl_end_point]
     training_split = np.concatenate((dataset[0:vl_begin_point], dataset[vl_end_point:]), axis=0)
+
+    return training_split, validation_split
+
+
+def get_tr_and_vl_splits_by_size(dataset, vl_size, shuffle=False):
+
+    if shuffle:
+        np.random.shuffle(dataset)
+
+    validation_split = dataset[:vl_size]
+    training_split = dataset[vl_size:]
 
     return training_split, validation_split
 
@@ -94,40 +112,23 @@ def one_hot_encode_multiple_cols(arr, col_indexes_to_encode=None, cols_to_not_ch
     return encoded_ds
 
 
-def split_cup_dataset():
+def get_cup_dataset_from_file(filepath, has_id_col_to_remove=True):
+    dataset = np.loadtxt(filepath, delimiter=CUP_CFG['sep'])  # , converters=converters, fmt=config['datatypes']
+    if has_id_col_to_remove:
+        dataset = remove_id_col(dataset, CUP_CFG)
+    print(f'data loaded, shape: {dataset.shape}, dtype: {dataset.dtype}')
 
+    return dataset
+
+
+def get_cup_dataset_from_file2(filename='ML-CUP21-TR.csv', has_id_col_to_remove=False):
     root_dir = os.getcwd()
-    workdir = '.\\datasplitting\\assets\\ml-cup21-internal_splits\\'
-    workdir_path = os.path.join(root_dir, workdir)
-    input_file_name = 'ML-CUP21-TR.csv'
-    input_file_path = os.path.join(workdir_path, input_file_name)
-    # print(f'workdir_path dir: {workdir_path}, input_file_path: {input_file_path}')
-    sep = ','
+    # workdir_path = os.path.join(root_dir, CUP_DATASETS_DIR)
+    input_file_path = os.path.join(CUP_DATASETS_DIR, filename)
+    return get_cup_dataset_from_file(input_file_path, remove_id_col)
 
-    config = CUP_CFG
 
-    '''converters = {0: lambda s: int(s),
-                  1: lambda s: float(s),
-                  2: lambda s: float(s),
-                  3: lambda s: float(s),
-                  4: lambda s: float(s),
-                  5: lambda s: float(s),
-                  6: lambda s: float(s),
-                  7: lambda s: float(s),
-                  8: lambda s: float(s),
-                  9: lambda s: float(s),
-                  10: lambda s: float(s),
-                  11: lambda s: float(s),
-                  12: lambda s: float(s),
-                  }  # {0: datestr2num}'''
-
-    # pd.read_csv(filepath, sep=sep)
-    dataset = np.loadtxt(input_file_path, delimiter=sep)  # , converters=converters, fmt=config['datatypes']
-    print('data loaded, shape: ', dataset.shape)
-    print(f'dtype: {dataset.dtype}')
-
-    # check num columns, num patterns
-
+def shuffle_dataset(dataset):
     print('dataset head before shuffling: ')
     print(dataset[:2])
     # shuffle
@@ -136,22 +137,38 @@ def split_cup_dataset():
     print(dataset[:2])
     print('data loaded, shape: ', dataset.shape)
 
+
+def save_shuffled_dataset(filename_suffix):
+    dataset = get_cup_dataset_from_file2(filename='ML-CUP21-TR.csv')
+    shuffle_dataset(dataset)
+    # TODO: save to file
+    out_filename = 'ML-CUP21-' + filename_suffix + '.csv'
+    out_file_path = os.path.join(CUP_DATASETS_DIR, out_filename)
+    print(f'saving shuffled dataset to {out_file_path}')
+    np.savetxt(out_file_path, dataset, fmt=MLCUP2021datatypes, delimiter=CUP_CFG['sep'])
+
+
+def split_cup_dataset(dev_split_idx=1200, pt1_name='dev_split', pt2_name='test_split'):
+    dataset = get_cup_dataset_from_file(filename='ML-CUP21-TR.csv', workdir_path=CUP_DATASETS_DIR)
+    # check num columns, num patterns
+
+    shuffle_dataset(dataset)
+
     # test_set_ratio = 0.2
     # nb per il training set cercare num pattern che sia multiplo .. di minibatch tipici
     # 1477 totali
     # 1200 dev (0.8125) 277 ts (0.1875 perc)
     # cv folds: 240 vl, 960 tr (0.20 perc folds)
-    dev_split_idx = 1200
 
-    dev_split_filename = 'dev_split.csv'
-    dev_split_file_path = os.path.join(workdir_path, dev_split_filename)
+    dev_split_filename = pt1_name + '.csv'
+    dev_split_file_path = os.path.join(CUP_DATASETS_DIR, dev_split_filename)
     print(f'saving dataset to {dev_split_file_path}')
-    np.savetxt(dev_split_file_path, dataset[:dev_split_idx], fmt=config['datatypes'], delimiter=sep)
+    np.savetxt(dev_split_file_path, dataset[:dev_split_idx], fmt=MLCUP2021datatypes, delimiter=CUP_CFG['sep'])
 
-    test_split_filename = 'test_split.csv'
-    test_split_file_path = os.path.join(workdir_path, test_split_filename)
+    test_split_filename = pt2_name + '.csv'
+    test_split_file_path = os.path.join(CUP_DATASETS_DIR, test_split_filename)
     print(f'saving dataset to {test_split_file_path}')
-    np.savetxt(test_split_file_path, dataset[dev_split_idx:], fmt=config['datatypes'], delimiter=sep)
+    np.savetxt(test_split_file_path, dataset[dev_split_idx:], fmt=MLCUP2021datatypes, delimiter=CUP_CFG['sep'])
 
 
 def remove_id_col(dataset, config):
@@ -162,4 +179,5 @@ def remove_id_col(dataset, config):
 
 
 if __name__ == '__main__':
-    split_cup_dataset()
+    # split_cup_dataset(dev_split_idx=1400, pt1_name='retradev_split', pt2_name='test_split')
+    save_shuffled_dataset(filename_suffix='shuffled-retraining')
