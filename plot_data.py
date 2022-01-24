@@ -8,6 +8,9 @@ from guppy import hpy
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
+from preprocessing import get_cup_dev_set_fold_splits, get_cup_dataset_from_file
+from lib_models.utils import get_hyperparams_descr
+
 LAST_TRIAL_PLOTTED_IDX = 'last_trial_ploted_idx'
 LAST_TRIAL_PLOTTED_FOLDERNAME = 'last_trial_ploted_foldername'
 NUM_TRIALS_IN_FILE = 'num_trials_in_file'
@@ -189,10 +192,15 @@ def plot_learning_curve_to_img_file(validate_errors, train_errors, vl_misclassif
     # print(hpy().heap())
 
 
+
 if __name__ == '__main__':
     import sys
 
     # print(f'args: {sys.argv}')
+
+    if len(sys.argv) == 1:
+        plot_actual_vs_predicted_nn()
+        sys.exit()
 
     plot_data_file_dir = sys.argv[1]
     plot_data_filename = sys.argv[2]

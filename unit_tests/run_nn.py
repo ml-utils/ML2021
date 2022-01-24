@@ -66,60 +66,66 @@ def run_nn_cup(which_cv_fold=1):
     print(f'final vl MEE error = {test_net.validate_net(error_func=error_fn2)[0]:0.3f}')
 
 
-def run_nn_only_classification():
+def run_nn_monk():
     root_dir = os.getcwd()
-    filename = 'monks-1.train'
-    file_path = os.path.join(root_dir, '..\\datasplitting\\assets\\monk\\', filename)
+    dev_filename = 'monks-3.train'
+    test_filename = 'monks-3.test'
+    dev_file_path = os.path.join(root_dir, '..\\datasplitting\\assets\\monk\\', dev_filename)
+    test_filepath = os.path.join(root_dir, '..\\datasplitting\\assets\\monk\\', test_filename)
 
-    data = load_and_preprocess_monk_dataset(file_path)
-
-    # import seaborn as sns
-    # sns.pairplot(pd.DataFrame(data), diag_kind='kde')
-    # plt.show()
+    dev_data = load_and_preprocess_monk_dataset(dev_file_path)
+    test_data = load_and_preprocess_monk_dataset(test_filepath)
 
     rng = default_rng()
-    rng.shuffle(data)
-    example_number = data.shape[0]
+    rng.shuffle(dev_data)
+    example_number = dev_data.shape[0]
     train_ratio = 0.813
     split_id = int(np.round(example_number * train_ratio))
     print(f'doing {split_id} samples for training, and {example_number - split_id} for validation')
 
     print('dataset head after shuffling: ')
-    print(data[:5])
+    print(dev_data[:5])
     task = 'classification'
     activation = 'tanh'  # 'sigmoid' # 'tanh'
     net_shape = [17, 5, 1]
     mini_batch_size = 1
     lr = 0.1  # 1e-2
     alpha_momentum = 0.01  # 5e-2
-    lambda_reg = 0.00001  # 0.001  # 0.005
+    lambda_reg = 0.000001  # 0.00001  # 0.001  # 0.005
     stopping_threshold = 0.01  #0.00001  # 0.01
     max_epochs = 2000
-    patience = 50
+    patience = 100
     early_stopping = 'MSE2_val'  # 'EuclNormGrad'  # 'MSE2_val'
     error_fn = 'MSE'
 
-    test_net = NeuralNet(activation, net_shape, eta=lr, alpha=alpha_momentum, lamda=lambda_reg, mb=mini_batch_size,
+    net = NeuralNet(activation, net_shape, eta=lr, alpha=alpha_momentum, lamda=lambda_reg, mb=mini_batch_size,
                          task=task, verbose=True)
 
-    test_net.load_training(data[:split_id], 1, do_normalization=False)
-    test_net.load_validation(data[split_id:], 1)
+    net.load_training(dev_data[:split_id], 1, do_normalization=False)
+    net.load_validation(dev_data[split_id:], 1)
 
-    hyperparams_descr = get_hyperparams_descr(filename, str(net_shape), activation, mini_batch_size,
+    hyperparams_descr = get_hyperparams_descr(dev_filename, str(net_shape), activation, mini_batch_size,
                                               error_fn=error_fn, l2_lambda=lambda_reg, momentum=alpha_momentum,
                                               learning_rate=lr, optimizer='SGD constant lr')
     print(f'running training with hyperparams: {hyperparams_descr}')
     start_time = datetime.now()
     print('net initialized at {}'.format(start_time))
-    print(f'initial validation_error = {test_net.validate_net()[0]:0.3f}')
+    print(f'initial validation_error = {net.validate_net()[0]:0.3f}')
 
-    test_net.batch_training(threshold=stopping_threshold, max_epochs=max_epochs, stopping=early_stopping, patience=patience,
+    net.batch_training(threshold=stopping_threshold, max_epochs=max_epochs, stopping=early_stopping, patience=patience,
                             verbose=False, hyperparams_for_plot=hyperparams_descr)
     end_time = datetime.now()
     print('training completed at {} ({} elapsed)'.format(end_time, end_time - start_time))
-    final_validation_error, accuracy, vl_misc_rate = test_net.validate_net()
+    final_validation_error, vl_accuracy, vl_misc_rate = net.validate_net()
     print(f'final validation_error = {final_validation_error:0.3f}')
-    print(f'final validation accuracy = {accuracy:0.3f}')
+    print(f'final validation accuracy = {vl_accuracy:0.3f}')
+
+    net.load_validation(test_data, 1)
+    test_error_MSE, test_accuracy, test_misc_rate = net.validate_net()
+    print(f'TS MSE: {test_error_MSE}, TS accuracy: {test_accuracy} (net.validate_net)')
+
+    print(f'MSE: VL: {final_validation_error:0.3f}, TS: {test_error_MSE:0.3f}')
+    print(f'Accuracy: VL: {vl_accuracy:0.3f}, TS: {test_accuracy:0.3f}')
 
     # todo: plot actual vs predicted (as accuracy and as MSE smoothing function)
 
@@ -335,13 +341,99 @@ def cmd_evaluate_cup_blindset():
     np.savetxt(out_file_path, predicted_dataset, fmt=MLCUP21_BLINDSET_out_datatypes, delimiter=CUP_CFG['sep'])
 
 
+def plot_actual_vs_predicted_nn():
+    import matplotlib.pyplot as plt
+    print(f'plotting_actual_vs_predicted_nn..')
+    best_weights_path = '..\\report_grid_searches\\chosen_model\\20220123-153347\\latest'
+    dev_dataset_path = '..\\datasplitting\\assets\\ml-cup21-internal_splits\\dev_split.csv'
+    cup_internal_testset_path = '..\\datasplitting\\assets\\ml-cup21-internal_splits\\test_split.csv'
+    print(f'loading net best_weights from {best_weights_path}')
+    print(f'cup_internal_testset_path file: {cup_internal_testset_path}')
+
+    error_fn = 'MSE'  # MSE, MEE
+    task = 'regression'
+    out_dim = 2
+
+    activation = 'tanh'  # 'sigmoid' # 'tanh'
+    mini_batch_size = 50  # 80 # 32
+    lr = 0.1  # 0.01  # 1e-2 # 1e-4
+    alpha_momentum = 0.04  # 5e-2
+    lambda_reg = 0.0005  # 0.0005  # 0.001  # 0.005 # 5e-7
+
+    cv_num_plits = 3
+    which_cv_fold = 1
+
+    net = NeuralNet.load_net(best_weights_path, activation, eta=lr, alpha=alpha_momentum, lamda=lambda_reg,
+                             mb=mini_batch_size, task=task, error=error_fn)  # , **kwargs
+
+    # this is used only to regenerate the scale and shift vectors used in normalization
+    # load dataset on which to perform the assessment/evaluation, without normalization
+    training_split, _ = get_cup_dev_set_fold_splits(dev_dataset_path,
+                                                                   cv_num_plits=cv_num_plits,
+                                                                   which_fold=which_cv_fold)
+    net.load_training(training_split, out_dim)
+
+    cup_internal_testset = get_cup_dataset_from_file(cup_internal_testset_path)
+    # todo, check that the dimension is 1 hid col and 10 features columns
+    print(f'cup_internal_testset size: {cup_internal_testset.shape}')
+
+    # split y1 and y2 values (generate 2 plots)
+    actual_y1s, actual_y2s, predicted_y1s, predicted_y2s = [], [], [], []
+    for entry in cup_internal_testset:
+        entry_features = entry[0:10]
+        actual_y1 = entry[10:11]
+        actual_y2 = entry[-1:]  # todo: check it is a scalar
+
+        predicted = net.evaluate(entry_features)
+        predicted_y1 = predicted[:1]
+        predicted_y2 = predicted[1:]
+        print(f'actual_y1: {actual_y1}, actual_y2: {actual_y2}, '
+              f'predicted_y1: {predicted_y1}, actual_y2: {predicted_y2}, '
+              f'entry_features len: {len(entry_features)}')
+        actual_y1s.append(np.asscalar(actual_y1))
+        actual_y2s.append(np.asscalar(actual_y2))
+        predicted_y1s.append(np.asscalar(predicted_y1))
+        predicted_y2s.append(np.asscalar(predicted_y2))
+
+    actual_y1s = np.asarray(actual_y1s)
+    actual_y2s = np.asarray(actual_y2s)
+    predicted_y1s = np.asarray(predicted_y1s)
+    predicted_y2s = np.asarray(predicted_y2s)
+
+    actual_y1s, predicted_y1s = (list(t) for t in zip(*sorted(zip(actual_y1s, predicted_y1s))))
+    actual_y2s, predicted_y2s = (list(t) for t in zip(*sorted(zip(actual_y2s, predicted_y2s))))
+
+    net_shape = [10, 10, 10, out_dim]
+    hyperparams_descr = get_hyperparams_descr('test_split.csv', str(net_shape), activation, mini_batch_size,
+                          error_fn=error_fn, l2_lambda=lambda_reg, momentum=alpha_momentum,
+                          learning_rate=lr)
+
+    f, (ax1, ax2) = plt.subplots(1, 2, sharey=False)
+    l1, l2 = plot_predicted_points(ax1, hyperparams_descr, actual_y1s, predicted_y1s, 'blue', 'orange', 'y1')
+    l3, l4 = plot_predicted_points(ax2, hyperparams_descr, actual_y2s, predicted_y2s, 'blue', 'orange', 'y2')
+    plt.legend([l1, l2], ["actual_labels", "predicted_labels"])
+    plt.show()
+
+
+def plot_predicted_points(ax, hyperparams_descr, actual_labels, predicted_labels, actual_color, predicted_color, title):
+
+    l1 = ax.scatter(range(len(actual_labels)), actual_labels, color=actual_color)  #  l2, = ax2.plot(actual_labels, '-o', color='blue')
+    l2 = ax.scatter(range(len(predicted_labels)), predicted_labels, color=predicted_color)  # '-o',
+    ax.set_title(title)
+    ax.set_xlabel('sample index')
+    ax.set_ylabel('sample label value')
+    return l1, l2
+
+
 if __name__ == '__main__':
     import sys
 
-    cmd_evaluate_cup_blindset()
+    # cmd_evaluate_cup_blindset()
     #   command_line_retraining()
     #   command_line_training()
     #   command_line_load_and_assess_net()
+    # run_nn_monk()
+    plot_actual_vs_predicted_nn()
 
 
 
