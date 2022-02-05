@@ -1,6 +1,7 @@
 import gc
 import glob
 import json
+import math
 import os
 
 import numpy as np
@@ -152,18 +153,28 @@ def plot_learning_curve_to_img_file(validate_errors, train_errors, vl_misclassif
                                     hyperparams_for_plot, learning_task, error_func, net_dir, trial_name='',
                                     ylim=None, xlim=None):
     # todo, workaround: run this in a separathe thread/process to try fix the crash after 350 plots
-
+    linewidth = 0.6
     try:
         fig, ax = plt.subplots(1)
         # todo: explain: why specify [:epoch+1]
-        ax.plot(validate_errors[:epoch+1], '--', label='validation errors')
-        ax.plot(train_errors[:epoch+1], '-', label='training errors')
-        ax.plot(vl_misclassification_rates[:epoch + 1], label='vl misclassification rates')
+        ax.plot(validate_errors[:epoch+1], '--', label='validation errors', linewidth=linewidth)
+        ax.plot(train_errors[:epoch+1], '-', label='training errors', linewidth=linewidth)
+        #fixme vl_misclassification_rates is nd array
+        actual_vl_misclassification_rates = [e for e in vl_misclassification_rates if e != 0 and not math.isnan(e)]
+        print(f'len(actual_vl_misclassification_rates): {len(actual_vl_misclassification_rates)}')
+        print(actual_vl_misclassification_rates[:5])
+        if len(actual_vl_misclassification_rates) > 0:
+            ax.plot(vl_misclassification_rates[:epoch + 1], label='vl misclassification rates', linewidth=linewidth)
         if ylim is not None:
             plt.ylim(ylim)
         if xlim is not None:
             plt.xlim(xlim)
         plt.xlabel('epoch')
+
+        best_vl_err = min(validate_errors[:epoch+1])
+        best_epoch = validate_errors[:epoch+1].index(best_vl_err)
+        print(f'best_vl_err: {best_vl_err}, best_epoch: {best_epoch}')
+        plt.axvline(x=best_epoch, linewidth=linewidth, color='black')
 
         y_axis_label = 'MSE / miscl rate' if learning_task == 'classification' else error_func
         plt.ylabel(y_axis_label)
@@ -184,7 +195,7 @@ def plot_learning_curve_to_img_file(validate_errors, train_errors, vl_misclassif
     filename = 'errors-' + trial_name + '.png'
     error_graph_path = os.path.join(net_dir, filename)
 
-    plt.savefig(error_graph_path)
+    plt.savefig(error_graph_path, dpi=300)
     fig.clear()
     plt.close(fig) # plt.close('all')
     gc.collect()
@@ -219,7 +230,7 @@ if __name__ == '__main__':
         print(f'File does not exist: {plot_data_file_dir} ')
         sys.exit()
 
-    ylim = (0.08, 0.3)
+    ylim = (0.08, 0.20)
     xlim = None  # (0, 2000)
     generate_plot_from_single_trial_output_file(plot_data_file_full_path, save_to_dir, session_num, trial_num,
                                                 ylim=ylim, xlim=xlim)

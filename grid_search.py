@@ -19,15 +19,15 @@ from preprocessing import load_and_preprocess_monk_dataset, get_cup_dev_set_fold
 
 
 CUP_CUSTOM_NET_HP_RANGES = {
-    HP.UNITS_PER_LAYER: hp.HParam(HP.UNITS_PER_LAYER, hp.Discrete([20])),
-    HP.N_HID_LAYERS: hp.HParam(HP.N_HID_LAYERS, hp.Discrete([2])),
+    HP.UNITS_PER_LAYER: hp.HParam(HP.UNITS_PER_LAYER, hp.Discrete([50])),
+    HP.N_HID_LAYERS: hp.HParam(HP.N_HID_LAYERS, hp.Discrete([8])),
     HP.OPTIMIZER: hp.HParam(HP.OPTIMIZER, hp.Discrete(['SGD constant lr'])),
-    HP.LR: hp.HParam(HP.LR, hp.Discrete([0.01])),
-    HP.MOMENTUM: hp.HParam(HP.MOMENTUM, hp.Discrete([0.04])),
-    HP.LAMBDA_L2: hp.HParam(HP.LAMBDA_L2, hp.RealInterval(min_value=0.0001, max_value=0.0001)),
-    HP.MB: hp.HParam(HP.MB, hp.Discrete([50])),
-    HP.ACTIV_FUN: hp.HParam(HP.ACTIV_FUN, hp.Discrete(['tanh'])),
-    HP.STOPPING_THRESH: hp.HParam(HP.STOPPING_THRESH, hp.Discrete([0.001])),
+    HP.LR: hp.HParam(HP.LR, hp.Discrete([0.001, 0.003])),
+    HP.MOMENTUM: hp.HParam(HP.MOMENTUM, hp.Discrete([0.01, 0.04])),
+    HP.LAMBDA_L2: hp.HParam(HP.LAMBDA_L2, hp.RealInterval(min_value=0.000000001, max_value=0.00000005)),
+    HP.MB: hp.HParam(HP.MB, hp.Discrete([100])),
+    HP.ACTIV_FUN: hp.HParam(HP.ACTIV_FUN, hp.Discrete(['leakyrelu'])),
+    HP.STOPPING_THRESH: hp.HParam(HP.STOPPING_THRESH, hp.Discrete([0.0005])),
     HP.PATIENCE: hp.HParam(HP.PATIENCE, hp.Discrete([75])),
     HP.MAX_EPOCHS: hp.HParam(HP.MAX_EPOCHS, hp.Discrete([2000])),
     HP.ERROR_FN: hp.HParam(HP.ERROR_FN, hp.Discrete(['MSE'])),  # MSE
@@ -93,7 +93,7 @@ def do_grid_search(cfg, cv_fold=None):
         HP_RANGES[HP.N_HID_LAYERS].domain.values,
         HP_RANGES[HP.LR].domain.values,
         HP_RANGES[HP.MOMENTUM].domain.values,
-        [HP_RANGES[HP.LAMBDA_L2].domain.min_value],
+        [HP_RANGES[HP.LAMBDA_L2].domain.min_value, HP_RANGES[HP.LAMBDA_L2].domain.max_value],
         HP_RANGES[HP.OPTIMIZER].domain.values,
         HP_RANGES[HP.MB].domain.values,
         HP_RANGES[HP.ACTIV_FUN].domain.values,
@@ -193,7 +193,7 @@ def get_aggregate_results(group_of_trial_repeats, hparams):
                 print(f'{group_of_trial_repeats}')
             else:
                 try:
-                    aggregated_results[numeric_metric + '-median'] = f'{statistics.median(values):0.3f}'
+                    aggregated_results[numeric_metric + '-mean'] = f'{statistics.mean(values):0.3f}'
                     aggregated_results[numeric_metric + '-sd'] = f'{statistics.stdev(values):0.3f}'
                 except Exception as e:
                     print(f'Warning/Error: unable to aggregate trial results for {numeric_metric} are empty!')

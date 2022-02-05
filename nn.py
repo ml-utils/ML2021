@@ -38,6 +38,22 @@ def tanhprime(a, b):
     return lambda y: a*b - b/a*y**2
 
 
+def relu(x):
+    return max(0, x)
+
+
+def reluprime_i(x):
+    return 1 if x >= 0 else 0
+
+
+def leaky_relu(x):
+    return x if x >= 0 else 0.01*x
+
+
+def leaky_relu_prime_i(x):
+    return 1 if x >= 0 else 0.01
+
+
 # "layer" class:
 # implements a single layer of an MLP
 
@@ -73,6 +89,7 @@ class Layer:
 
         self.delta_weights_old = np.zeros([fan_out, fan_in + 1])
 
+        self.use_out_instead_of_netx = True
         if activation == 'linear':
             self.activation = linear
             self.derivative = linearprime
@@ -84,6 +101,16 @@ class Layer:
         elif activation == 'tanh':
             self.activation = tanh(*act_parameters)
             self.derivative = tanhprime(*act_parameters)
+
+        elif activation == 'relu':
+            self.use_out_instead_of_netx = False
+            self.activation = relu
+            self.derivative = reluprime_i
+
+        elif activation == 'leakyrelu':
+            self.use_out_instead_of_netx = False
+            self.activation = leaky_relu
+            self.derivative = leaky_relu_prime_i
 
         self.activation = np.vectorize(self.activation)
         self.derivative = np.vectorize(self.derivative)
@@ -111,6 +138,7 @@ class Layer:
 
     def switch_role_to_out_layer(self, task):
         self.role = 'output'
+        self.use_out_instead_of_netx = True
         if task == 'regression':
             self.activation = np.vectorize(linear)
             self.derivative = np.vectorize(linearprime)
@@ -146,7 +174,10 @@ class Layer:
         # if role == hidden unit k:
         # error_signal = sum_(j=1)^fan_out w_lj^(k+1)*delta_l
         # error_signal or delta_t ∀ unit t
-        error_signal = dEp_dOt*self.derivative(self.latest_out)
+        if self.use_out_instead_of_netx:
+            error_signal = dEp_dOt*self.derivative(self.latest_out)
+        else:
+            error_signal = dEp_dOt*self.derivative(self.latest_net)
         # nb: we use latest_out instead of latest_net
         # because, for convenience, the derivative functions here are expressed in terms of the out, not of the net
 
@@ -178,7 +209,7 @@ class Layer:
 class NeuralNet:
 
     def __init__(self, activation, units=(2, 2), eta=0.1, alpha=0.1, lamda=0.01, mb=20,
-                 task='classification', error='MSE', placeholder=False, verbose=False, **kwargs):
+                 task='classification', error='MSE', nesterov=False, placeholder=False, verbose=False, **kwargs):
 
         # activation (string): name of activation function used
         #                      (TODO: add way to use different functions for different layers)
@@ -430,7 +461,7 @@ class NeuralNet:
     def update_weights(self):
 
         for layer in self.layers:
-            layer.update_weights(self.eta/self.mb, self.alpha/self.mb, self.lamda/self.mb)
+            layer.update_weights(self.eta/self.mb, self.alpha, self.lamda)
         squared_gradient_last_layer = np.square(self.layers[-1].delta_weights_old)
         euclidean_norm_grad_last_layer = math.sqrt(np.sum(squared_gradient_last_layer))
         return euclidean_norm_grad_last_layer
@@ -483,6 +514,8 @@ class NeuralNet:
         # number of examples used in each epoch (lower than total number of TRAIN examples, see batch_split()
         example_number = self.training_set.shape[0] - self.training_set.shape[0] % self.mb
         num_of_batches = example_number / self.mb
+        print(f'tr patterns: {example_number}')
+
         best_epoch_for_stopping = 0
         done_epochs = 0
         for epoch in range(max_epochs):
@@ -522,13 +555,15 @@ class NeuralNet:
 
             if verbose:
                 print('epoch train error: ', train_errors[epoch])
-            if not epoch % 100 and epoch > 0:  # prints training status on console every 100 epochs
+            if not epoch % 20 and epoch > 0:  # prints training status on console every 100 epochs
                 self.savestate(epoch)
                 accuracy_info = f', accuracy = {accuracy:.3f}' if accuracy is not None else ''
-                print(f'epoch {epoch} done (tr error = {train_errors[epoch]:.3f}, tr patterns: {example_number} '
-                      f'(of which used: {actual_used_tr_patterms}), '
-                      f'val error = {validate_errors[epoch]:.3f}, val patterns: {self.validation_set.shape[0]}'
-                      f'{accuracy_info})')
+                print(f'epoch {epoch} done, best is {best_epoch_for_stopping} '
+                      f'(curr tr err: {train_errors[epoch]:.4f}, '
+                      f'best: {train_errors[best_epoch_for_stopping]:.4f}, '
+                      f'curr vl err: {validate_errors[epoch]:.4f}, '
+                      f'best: {validate_errors[best_epoch_for_stopping]:.4f}'
+                      f'{accuracy_info}), {datetime.now().strftime("%d/%m/%Y %H:%M:%S")}')
 
             # check for stopping conditions
             if self.should_stop_training(stopping, threshold, max_epochs, epoch, best_epoch_for_stopping, patience,
@@ -744,10 +779,10 @@ if __name__ == '__main__':
     test_net.load_validation(validation_split, out=out_dim)
 
     start_time = datetime.now()
-    print('net initialized at {}'.format(start_time))
+    print(f'net initialized at {start_time.strftime("%d/%m/%Y, %H:%M:%S")}')  # .format(start_time)  
     print(f'initial validation_error = {test_net.validate_net()[0]:.3f}')
-    test_net.batch_training(    threshold = stopping_threshold, max_epochs = max_epochs, stopping=early_stopping,
-                                patience = patience, verbose=False)
+    test_net.batch_training(threshold=stopping_threshold, max_epochs = max_epochs, stopping=early_stopping,
+                                patience=patience, verbose=False)
     end_time = datetime.now()
     print('training completed at {} ({} elapsed)'.format(end_time, end_time - start_time))
     print(f'final validation_error = {test_net.validate_net()[0]}')

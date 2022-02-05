@@ -31,12 +31,12 @@ def run_nn_cup(which_cv_fold=1):
     adaptive_lr = 'SGD constant lr'
     out_dim = 2
 
-    net_shape = [10, 10, 10, out_dim]
-    lr = 0.01  # 0.01  # 1e-2 # 1e-4
+    net_shape = [10, 50, 50, 50, 50, 50, 50, 50, 50, out_dim]
+    lr = 0.003  # 0.01  # 1e-2 # 1e-4
     alpha_momentum = 0.04  # 5e-2
-    lambda_reg = 0.0005  # 0.0005  # 0.001  # 0.005 # 5e-7
-    mini_batch_size = 32  # 80 # 32
-    activation = 'tanh'  # 'sigmoid' # 'tanh'
+    lambda_reg = 0.000000001  # 0.0005  # 0.001  # 0.005 # 5e-7
+    mini_batch_size = 100  # 80 # 32
+    activation = 'leakyrelu'  # 'sigmoid' # 'tanh' # 'leakyrelu'
 
     stopping_threshold = 0.001  #0.00001  # 0.01
     max_epochs = 2000
@@ -55,7 +55,7 @@ def run_nn_cup(which_cv_fold=1):
                                               learning_rate=lr, optimizer=adaptive_lr)
     print(f'{hyperparams_descr}')
     start_time = datetime.now()
-    print('net initialized at {}'.format(start_time))
+    print(f'net initialized at {start_time.strftime("%d/%m/%Y %H:%M:%S")}')
     print(f'initial validation_error = {test_net.validate_net()[0]:0.3f}')
     test_net.batch_training(threshold=stopping_threshold, max_epochs=max_epochs, stopping=early_stopping, patience=patience,
                             verbose=False, hyperparams_for_plot=hyperparams_descr)
@@ -109,7 +109,7 @@ def run_nn_monk():
                                               learning_rate=lr, optimizer='SGD constant lr')
     print(f'running training with hyperparams: {hyperparams_descr}')
     start_time = datetime.now()
-    print('net initialized at {}'.format(start_time))
+    print(f'net initialized at {start_time.strftime("%d/%m/%Y %H:%M:%S")}')
     print(f'initial validation_error = {net.validate_net()[0]:0.3f}')
 
     net.batch_training(threshold=stopping_threshold, max_epochs=max_epochs, stopping=early_stopping, patience=patience,
@@ -259,7 +259,7 @@ def command_line_retraining():
                                               learning_rate=lr, optimizer=adaptive_lr)
     print(f'{hyperparams_descr}')
     start_time = datetime.now()
-    print('net initialized at {}'.format(start_time))
+    print(f'net initialized at {start_time.strftime("%d/%m/%Y %H:%M:%S")}')
     print(f'initial validation_error = {net.validate_net()[0]:0.3f}')
     net.batch_training(threshold=stopping_threshold, max_epochs=max_epochs, stopping=early_stopping,
                             patience=patience,
@@ -430,10 +430,10 @@ if __name__ == '__main__':
 
     # cmd_evaluate_cup_blindset()
     #   command_line_retraining()
-    #   command_line_training()
+    command_line_training()
     #   command_line_load_and_assess_net()
     # run_nn_monk()
-    plot_actual_vs_predicted_nn()
+    # plot_actual_vs_predicted_nn()
 
 
 
